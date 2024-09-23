@@ -46,6 +46,7 @@ fi
 
 # Create a user called 'docker' and prompt for a password
 sudo adduser docker
+echo "Please enter a password for the 'docker' user:"
 sudo passwd docker
 sudo usermod -aG docker docker
 
