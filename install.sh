@@ -44,12 +44,6 @@ else
     echo "Docker is already installed. Skipping Docker installation."
 fi
 
-# Create a user called 'docker' and prompt for a password
-sudo adduser docker
-echo "Please enter a password for the 'docker' user:"
-sudo passwd docker
-sudo usermod -aG docker docker
-
 # Install Portainer
 sudo docker volume create portainer_data
 sudo docker run -d -p 9000:9000 --name=portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce
@@ -65,4 +59,4 @@ echo "You can access Portainer at http://$IP_ADDRESS:9000 or your domain if conf
 echo "Watchtower has been installed to automatically update Portainer."
 
 # Pause and wait for the user to hit Enter to continue
-read -p "Press Enter to continue..."
+read -p "You should add the docker group to a non-root user to use for Docker commands"
