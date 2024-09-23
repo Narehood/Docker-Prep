@@ -26,16 +26,22 @@ install_docker_yum() {
     sudo systemctl enable docker
 }
 
-# Detect the package manager and install Docker
-if command -v apt-get &> /dev/null; then
-    install_docker_apt
-elif command -v dnf &> /dev/null; then
-    install_docker_dnf
-elif command -v yum &> /dev/null; then
-    install_docker_yum
+# Check if Docker is installed
+if ! command -v docker &> /dev/null; then
+    echo "Docker is not installed. Installing Docker..."
+    # Detect the package manager and install Docker
+    if command -v apt-get &> /dev/null; then
+        install_docker_apt
+    elif command -v dnf &> /dev/null; then
+        install_docker_dnf
+    elif command -v yum &> /dev/null; then
+        install_docker_yum
+    else
+        echo "Unsupported package manager. Please install Docker manually."
+        exit 1
+    fi
 else
-    echo "Unsupported package manager. Please install Docker manually."
-    exit 1
+    echo "Docker is already installed. Skipping Docker installation."
 fi
 
 # Create a user called 'docker' and add to the 'docker' group
