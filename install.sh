@@ -59,4 +59,4 @@ echo "You can access Portainer at http://$IP_ADDRESS:9000 or your domain if conf
 echo "Watchtower has been installed to automatically update Portainer."
 
 # Pause and wait for the user to hit Enter to continue
-read -p "You should add the docker group to a non-root user to use for Docker commands"
+read -p "You should add the docker group to a non-root user to use for Docker commands. Please press enter to return to the install menu."
