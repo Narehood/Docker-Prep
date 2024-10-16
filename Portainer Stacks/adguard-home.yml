@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  adguardhome:
+    image: 'adguard/adguardhome'
+    container_name: adguardhome
+    restart: always
+    network_mode: 'host'
+    ports:
+      - '53:53/tcp'    # DNS
+      - '53:53/udp'    # DNS
+      - '67:67/udp'    # DHCP
+      - '68:68/tcp'    # DHCP
+      - '80:80/tcp'    # HTTP
+      - '443:443/tcp'  # HTTPS
+      - '3000:3000/tcp'  # Web interface
+    volumes:
+      - adguardhome_config:/opt/adguardhome/work
+      - adguardhome_data:/opt/adguardhome/conf
+
+volumes:
+  adguardhome_config:
+  adguardhome_data:
