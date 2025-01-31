@@ -4,7 +4,7 @@
 show_menu() {
     clear
     echo -e "====================================="
-    echo -e "          \e[1;34mVM Setup Menu 1.1.0\e[0m"
+    echo -e "          \e[1;34mVM Setup Menu 1.2.0\e[0m"
     echo -e "====================================="
     echo -e "\e[1;32mSystem Information\e[0m"
     echo -e "-------------------------------------"
@@ -18,9 +18,30 @@ show_menu() {
     echo -e "-------------------------------------"
     echo -e "\e[1;36m1.\e[0m Install Docker"
     echo -e "\e[1;36m2.\e[0m Add A User To The Docker Group"
-    echo -e "\e[1;36m3.\e[0m Check for Updates (Coming Soon)"
+    echo -e "\e[1;36m3.\e[0m Check for Updates"
     echo -e "\e[1;36m4.\e[0m Exit"
     echo -e "====================================="
+}
+
+# Function to check for updates
+check_for_updates() {
+    echo "Checking for updates in VM-Setup repository..."
+    git remote update
+    LOCAL=$(git rev-parse @)
+    REMOTE=$(git rev-parse @{u})
+    if [ "$LOCAL" = "$REMOTE" ]; then
+        echo "VM-Setup is up to date."
+    else
+        echo "VM-Setup has updates available."
+        read -p "Do you want to pull the latest changes? (y/n): " pull_choice
+        if [ "$pull_choice" = "y" ]; then
+            git pull
+            echo "Repository updated successfully."
+            bash install.sh
+        else
+            echo "Update aborted."
+        fi
+    fi
 }
 
 # Function to navigate to scripts and execute a script
@@ -44,7 +65,8 @@ while true; do
             execute_script "DockerGroup.sh"
             ;;
         3)
-            echo "Check for Updates feature is coming soon!"
+            echo "Checking for updates..."
+            check_for_updates
             ;;
         4)
             echo "Exiting..."
