@@ -1,7 +1,6 @@
 [![Narehood - Docker-Prep](https://img.shields.io/static/v1?label=Narehood&message=Docker-Prep&color=blue&logo=github)](https://github.com/Narehood/Docker-Prep "Go to GitHub repo")
 [![stars - Docker-Prep](https://img.shields.io/github/stars/Narehood/Docker-Prep?style=social)](https://github.com/Narehood/Docker-Prep)
 [![forks - Docker-Prep](https://img.shields.io/github/forks/Narehood/Docker-Prep?style=social)](https://github.com/Narehood/Docker-Prep)
-[![GitHub tag](https://img.shields.io/github/tag/Narehood/Docker-Prep?include_prereleases=&sort=semver&color=blue)](https://github.com/Narehood/Docker-Prep/releases/)
 [![License](https://img.shields.io/badge/License-MIT-blue)](https://github.com/Narehood/Docker-Prep/blob/main/LICENSE)
 [![issues - Docker-Prep](https://img.shields.io/github/issues/Narehood/Docker-Prep)](https://github.com/Narehood/Docker-Prep/issues)
 
