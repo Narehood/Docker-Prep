@@ -3,6 +3,7 @@
 [![forks - Docker-Prep](https://img.shields.io/github/forks/Narehood/Docker-Prep?style=social)](https://github.com/Narehood/Docker-Prep)
 [![License](https://img.shields.io/badge/License-MIT-blue)](https://github.com/Narehood/Docker-Prep/blob/main/LICENSE)
 [![issues - Docker-Prep](https://img.shields.io/github/issues/Narehood/Docker-Prep)](https://github.com/Narehood/Docker-Prep/issues)
+![Bash Script](https://img.shields.io/badge/bash_script-%23121011.svg?style=for-the-badge&logo=gnu-bash&logoColor=white)
 
 # Docker-Prep
 
