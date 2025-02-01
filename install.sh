@@ -3,24 +3,24 @@
 # Function to display the menu
 show_menu() {
     clear
-    echo -e "====================================="
-    echo -e "          \e[1;34mVM Setup Menu 1.2.0\e[0m"
-    echo -e "====================================="
-    echo -e "\e[1;32mSystem Information\e[0m"
+    echo -e "\033[0;32m=====================================\033[0m"
+    echo -e "          \033[1;34mVM Setup Menu 1.3.0\033[0m"
+    echo -e "\033[0;32m=====================================\033[0m"
+    echo -e "\033[1;32mSystem Information\033[0m"
     echo -e "-------------------------------------"
-    echo -e "Linux Distribution: \e[1;33m$(lsb_release -d | cut -f2)\e[0m"
-    echo -e "Kernel Version: \e[1;33m$(uname -r)\e[0m"
-    echo -e "CPU Usage: \e[1;33m$(top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print 100 - $1"%"}')\e[0m"
-    echo -e "Memory Usage: \e[1;33m$(free -m | awk 'NR==2{printf "Memory Usage: %s/%sMB (%.2f%%)\n", $3,$2,$3*100/$2 }')\e[0m"
-    echo -e "Disk Usage: \e[1;33m$(df -h | awk '$NF=="/"{printf "Disk Usage: %d/%dGB (%s)\n", $3,$2,$5}')\e[0m"
-    echo -e "====================================="
-    echo -e "\e[1;32mOptions\e[0m"
+    echo -e "Linux Distribution: \033[1;33m$(lsb_release -d | cut -f2)\033[0m"
+    echo -e "Kernel Version: \033[1;33m$(uname -r)\033[0m"
+    echo -e "CPU Usage: \033[1;33m$(top -bn1 | grep 'Cpu(s)' | sed 's/.*, *\([0-9.]*\)%* id.*/\1/' | awk '{print 100 - $1"%"}')\033[0m"
+    echo -e "Memory Usage: \033[1;33m$(free -m | awk 'NR==2{printf "Memory Usage: %s/%sMB (%.2f%%)\n", $3,$2,$3*100/$2 }')\033[0m"
+    echo -e "Disk Usage: \033[1;33m$(df -h | awk '$NF=="/"{printf "Disk Usage: %d/%dGB (%s)\n", $3,$2,$5}')\033[0m"
+    echo -e "\033[0;32m=====================================\033[0m"
+    echo -e "\033[1;32mOptions\033[0m"
     echo -e "-------------------------------------"
-    echo -e "\e[1;36m1.\e[0m Install Docker"
-    echo -e "\e[1;36m2.\e[0m Add A User To The Docker Group"
-    echo -e "\e[1;36m3.\e[0m Check for Updates"
-    echo -e "\e[1;36m4.\e[0m Exit"
-    echo -e "====================================="
+    echo -e "\033[1;36m1.\033[0m Install Docker"
+    echo -e "\033[1;36m2.\033[0m Add A User To The Docker Group"
+    echo -e "\033[1;36m3.\033[0m Check for Updates"
+    echo -e "\033[1;36m4.\033[0m Exit"
+    echo -e "\033[0;32m=====================================\033[0m"
 }
 
 # Function to check for updates
@@ -73,13 +73,8 @@ while true; do
             exit 0
             ;;
         *)
-            echo "Invalid option. Please choose a number between 1 and 4."
+            echo -e "\033[0;31mInvalid option. Please choose a number between 1 and 4.\033[0m"
             ;;
     esac
     if [ "$choice" -ne 4 ]; then
-        read -p "Press [Enter] key to return to menu or type 'exit' to exit: " next_action
-        if [ "$next_action" = "exit" ]; then
-            exit 0
-        fi
-    fi
-done
+        read -p "Press [Enter] key to return to menu or type 'exit' to
