@@ -11,6 +11,9 @@ services:
       - REPLICA_URL=https://0.0.0.0 #change as necessary
       - REPLICA_USERNAME=username #change as necessary
       - REPLICA_PASSWORD=password #change as necessary
+      - REPLICA1_URL=https://0.0.0.0 #change as necessary
+      - REPLICA1_USERNAME=username #change as necessary
+      - REPLICA1_PASSWORD=password #change as necessary
       - FEATURES_DNS_SERVER_CONFIG=false
       - RUNONSTART=true
       - CRON=*/5 * * * * # run every 5 minutes
