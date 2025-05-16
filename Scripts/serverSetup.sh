@@ -21,7 +21,28 @@ detect_os() {
     fi
 }
 
-# Function to install Docker using apt (Ubuntu/Debian)
+# Function to install Docker using apk (Alpine)
+install_docker_apk() {
+    REPO_URL="https://dl-cdn.alpinelinux.org/alpine/edge/community"
+    if ! grep -q "$REPO_URL" /etc/apk/repositories; then
+        echo "$REPO_URL" >> /etc/apk/repositories
+    fi
+    sudo apk update
+    sudo apk add docker
+    sudo rc-update add docker default
+    sudo service docker start
+    sudo addgroup $(whoami) docker
+}
+
+# Function to install Docker using pacman (Arch)
+install_docker_pacman() {
+    sudo pacman -Syu --noconfirm docker
+    sudo systemctl start docker
+    sudo systemctl enable docker
+    sudo usermod -aG docker $USER
+}
+
+# Function to install Docker using apt (Debian/Ubuntu)
 install_docker_apt() {
     sudo apt update && sudo apt upgrade -y
     sudo apt install -y docker.io
@@ -57,14 +78,6 @@ install_docker_yum() {
     sudo usermod -aG docker $USER
 }
 
-# Function to install Docker using pacman (Arch)
-install_docker_pacman() {
-    sudo pacman -Syu --noconfirm docker
-    sudo systemctl start docker
-    sudo systemctl enable docker
-    sudo usermod -aG docker $USER
-}
-
 # Function to install Docker using zypper (SUSE)
 install_docker_zypper() {
     sudo zypper refresh
@@ -74,25 +87,18 @@ install_docker_zypper() {
     sudo usermod -aG docker $USER
 }
 
-# Function to install Docker using apk (Alpine)
-install_docker_apk() {
-    REPO_URL="https://dl-cdn.alpinelinux.org/alpine/edge/community"
-    if ! grep -q "$REPO_URL" /etc/apk/repositories; then
-        echo "$REPO_URL" >> /etc/apk/repositories
-    fi
-    sudo apk update
-    sudo apk add docker
-    sudo rc-update add docker default
-    sudo service docker start
-    sudo addgroup $(whoami) docker
-}
-
 # Check if Docker is installed
 if ! command -v docker &> /dev/null; then
     echo "Docker is not installed. Installing Docker..."
     detect_os
     case "$OS" in
-        ubuntu|debian)
+        alpine)
+            install_docker_apk
+            ;;
+        arch)
+            install_docker_pacman
+            ;;
+        debian|ubuntu)
             install_docker_apt
             ;;
         fedora)
@@ -101,14 +107,8 @@ if ! command -v docker &> /dev/null; then
         redhat|centos|rocky|almalinux)
             install_docker_yum
             ;;
-        arch)
-            install_docker_pacman
-            ;;
         suse)
             install_docker_zypper
-            ;;
-        alpine)
-            install_docker_apk
             ;;
         *)
             echo "Unsupported system. Please install Docker manually."
