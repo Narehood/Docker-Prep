@@ -23,7 +23,7 @@
 
 **Docker-Prep** is a Bash script that automates the setup of a secure Docker environment on a fresh Linux system. It detects your Linux distribution, installs Docker using the appropriate package manager, creates a dedicated user for Docker, and (optionally) installs [Portainer](https://www.portainer.io/) for easy container management.
 
-> **Tested on:** Ubuntu, Debian, Fedora, CentOS, RHEL, Rocky, Alma, Arch, SUSE, Alpine  
+> **Tested on:** Alpine, Alma, Arch, CentOS, Debian, Fedora, RHEL, Rocky, SUSE, Ubuntu  
 > _Should work on most modern Linux distributions._
 
 ---
