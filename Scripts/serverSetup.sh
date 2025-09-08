@@ -23,11 +23,11 @@ detect_os() {
 
 # Function to install Docker using apk (Alpine)
 install_docker_apk() {
+    su
     REPO_URL="https://dl-cdn.alpinelinux.org/alpine/edge/community"
     if ! grep -q "$REPO_URL" /etc/apk/repositories; then
         echo "$REPO_URL" >> /etc/apk/repositories
     fi
-    su
     apk update
     apk add docker
     rc-update add docker default
