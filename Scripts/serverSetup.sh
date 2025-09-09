@@ -14,7 +14,7 @@ detect_os() {
         VERSION=$(cat /etc/debian_version)
     elif grep -q "Alpine Linux" /etc/os-release; then
         OS="alpine"
-        VERSION=$(cat /etc/alpine-release)
+        VERSION=$(cat /etc/alpine-release | awk -F'.' '{print $1"."$2}') # Get major.minor version
     else
         OS=$(uname -s)
         VERSION=$(uname -r)
@@ -23,16 +23,42 @@ detect_os() {
 
 # Function to install Docker using apk (Alpine)
 install_docker_apk() {
-    su
-    REPO_URL="https://dl-cdn.alpinelinux.org/alpine/edge/community"
+    local ALPINE_VERSION=$(apk --version | head -n 1 | awk '{print $NF}' | cut -d- -f1)
+
+    # Determine the correct repository based on Alpine version
+    local REPO_URL=""
+    case "$ALPINE_VERSION" in
+        3.18)
+            REPO_URL="https://dl-cdn.alpinelinux.org/alpine/v3.18/community"
+            ;;
+        3.19)
+            REPO_URL="https://dl-cdn.alpinelinux.org/alpine/v3.19/community"
+            ;;
+        3.20)
+            REPO_URL="https://dl-cdn.alpinelinux.org/alpine/v3.20/community"
+            ;;
+        3.21)
+            REPO_URL="https://dl-cdn.alpinelinux.org/alpine/v3.21/community"
+            ;;
+        3.22)
+            REPO_URL="https://dl-cdn.alpinelinux.org/alpine/v3.22/community"
+            ;;
+        *)
+            echo "Warning: Unsupported Alpine version ($ALPINE_VERSION). Trying edge repository."
+            REPO_URL="https://dl-cdn.alpinelinux.org/alpine/edge/community"
+            ;;
+    esac
+
+    echo "Adding repository: $REPO_URL to /etc/apk/repositories"
     if ! grep -q "$REPO_URL" /etc/apk/repositories; then
-        echo "$REPO_URL" >> /etc/apk/repositories
+        echo "$REPO_URL" | sudo tee -a /etc/apk/repositories
     fi
-    apk update
-    apk add docker
-    rc-update add docker default
-    service docker start
-    addgroup $(whoami) docker
+    sudo apk update
+    sudo apk add docker docker-cli-compose
+    sudo rc-update add docker default
+    sudo service docker start
+    sudo addgroup $(whoami) docker || sudo adduser $(whoami) docker # Use adduser for group if addgroup fails
+    echo "Please log out and log back in for Docker group changes to take effect."
 }
 
 # Function to install Docker using pacman (Arch)
@@ -88,6 +114,13 @@ install_docker_zypper() {
     sudo usermod -aG docker $USER
 }
 
+# Check for root privileges at the beginning
+if [ "$EUID" -ne 0 ]; then
+    echo "This script requires root privileges to install Docker."
+    echo "Please run with sudo: sudo $0"
+    exit 1
+fi
+
 # Check if Docker is installed
 if ! command -v docker &> /dev/null; then
     echo "Docker is not installed. Installing Docker..."
@@ -125,8 +158,8 @@ read -p "Would you like to install Portainer? (y/N): " install_portainer
 install_portainer=${install_portainer:-n}
 
 if [ "$install_portainer" == "y" ]; then
-    sudo docker volume create portainer_data
-    sudo docker run -d -p 9000:9000 --name=portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce
+    docker volume create portainer_data
+    docker run -d -p 9000:9000 --name=portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce
 
     # Get the IP address of the machine
     IP_ADDRESS=$(hostname -I | awk '{print $1}')
