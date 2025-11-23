@@ -1,107 +1,97 @@
-<p align="center">
-  <a href="https://github.com/Narehood/Docker-Prep" title="Go to GitHub repo">
-    <img src="https://img.shields.io/static/v1?label=Narehood&message=Docker-Prep&color=blue&logo=github" alt="Narehood - Docker-Prep" />
+<div align="center">
+
+# 🐳 Docker-Prep
+
+<!-- BADGES -->
+<p>
+  <img src="https://img.shields.io/github/license/Narehood/Docker-Prep?style=for-the-badge&color=blue" alt="License" />
+  <img src="https://img.shields.io/github/last-commit/Narehood/Docker-Prep?style=for-the-badge&color=orange" alt="Last Commit" />
+  <img src="https://img.shields.io/badge/Bash-Script-black?style=for-the-badge&logo=gnu-bash" alt="Bash" />
+</p>
+<p>
+  <a href="https://github.com/Narehood/Docker-Prep/stargazers">
+    <img src="https://img.shields.io/github/stars/Narehood/Docker-Prep?style=social" alt="Stars" />
   </a>
-  <a href="https://github.com/Narehood/Docker-Prep">
-    <img src="https://img.shields.io/github/stars/Narehood/Docker-Prep?style=social" alt="stars - Docker-Prep" />
-  </a>
-  <a href="https://github.com/Narehood/Docker-Prep">
-    <img src="https://img.shields.io/github/forks/Narehood/Docker-Prep?style=social" alt="forks - Docker-Prep" />
-  </a>
-  <a href="https://github.com/Narehood/Docker-Prep/blob/main/LICENSE">
-    <img src="https://img.shields.io/badge/License-MIT-blue" alt="License" />
+  <a href="https://github.com/Narehood/Docker-Prep/network/members">
+    <img src="https://img.shields.io/github/forks/Narehood/Docker-Prep?style=social" alt="Forks" />
   </a>
   <a href="https://github.com/Narehood/Docker-Prep/issues">
-    <img src="https://img.shields.io/github/issues/Narehood/Docker-Prep" alt="issues - Docker-Prep" />
+    <img src="https://img.shields.io/github/issues/Narehood/Docker-Prep?style=social" alt="Issues" />
   </a>
-  <img src="https://img.shields.io/badge/bash_script-%23121011.svg?style=for-the-badge&logo=gnu-bash&logoColor=white" alt="Bash Script" />
 </p>
 
----
+<!-- DESCRIPTION -->
+<h3>Automated Docker Environment Configuration for Linux</h3>
+<p>
+Detects your OS, installs the official Docker Engine, creates dedicated users with correct permissions,<br>
+and optionally deploys Portainer for immediate container management.
+</p>
 
-# Docker-Prep
-
-**Docker-Prep** is a Bash script that automates the setup of a secure Docker environment on a fresh Linux system. It detects your Linux distribution, installs Docker using the appropriate package manager, creates a dedicated user for Docker, and (optionally) installs [Portainer](https://www.portainer.io/) for easy container management.
-
-> **Tested on:** Alpine, Alma, Arch, CentOS, Debian, Fedora, RHEL, Rocky, SUSE, Ubuntu  
-> _Should work on most modern Linux distributions._
-
----
-
-## Table of Contents
-
-- [What Does This Script Do?](#what-does-this-script-do)
-- [Features](#features)
-- [Installation & Usage](#installation--usage)
-- [Menu Options](#menu-options)
-- [Notes](#notes)
-- [License](#license)
+</div>
 
 ---
 
-## What Does This Script Do?
+## 🐧 Supported Distributions
 
-- **Detects your Linux distribution** and installs Docker using the correct method.
-- **Creates a new user** (or lets you add an existing user) for Docker usage.
-- **Adds the user to the Docker group** for non-root Docker access.
-- **Optionally installs Portainer**, a web UI for managing Docker containers.
-- **Guides you through each step** with clear prompts.
-
----
-
-## Features
-
-- 🐳 **Automatic Docker installation** (supports most major Linux distros)
-- 👤 **Creates a dedicated Docker user** and sets a password
-- 🔒 **Adds user to Docker group** for secure, non-root Docker usage
-- 🌐 **Optional Portainer installation** for easy container management
-- 📝 **Interactive prompts** for user creation and configuration
+<div align="center">
+  <img src="https://img.shields.io/badge/Ubuntu-E95420?style=flat-square&logo=ubuntu&logoColor=white" alt="Ubuntu" />
+  <img src="https://img.shields.io/badge/Debian-A81D33?style=flat-square&logo=debian&logoColor=white" alt="Debian" />
+  <img src="https://img.shields.io/badge/Alpine_Linux-0D597F?style=flat-square&logo=alpine-linux&logoColor=white" alt="Alpine" />
+  <img src="https://img.shields.io/badge/Arch_Linux-1793D1?style=flat-square&logo=arch-linux&logoColor=white" alt="Arch" />
+  <img src="https://img.shields.io/badge/Fedora-294172?style=flat-square&logo=fedora&logoColor=white" alt="Fedora" />
+  <img src="https://img.shields.io/badge/RHEL/CentOS-262525?style=flat-square&logo=redhat&logoColor=white" alt="RHEL" />
+</div>
 
 ---
 
-## Installation & Usage
+## ⚡ Quick Start
 
-Clone the repository and run the main script:
+Clone the repository and run the installer:
 
-```sh
+```bash
 git clone https://github.com/Narehood/Docker-Prep
 cd Docker-Prep
 bash install.sh
 ```
 
-**Follow the on-screen instructions** to:
+---
 
-- Install Docker (if not already installed)
-- Create a new user for Docker (or add an existing user)
-- Add the user to the Docker group
-- Optionally install Portainer
+## 🚀 Features
+
+| Feature | Description |
+| :--- | :--- |
+| **Auto-Detection** | Identifies your distro and installs the correct Docker Engine package. |
+| **User Management** | Creates a dedicated Docker user or configures existing users for rootless access. |
+| **Permission Fix** | Automatically handles group assignments (`usermod -aG docker`). |
+| **Portainer Ready** | Option to instantly deploy [Portainer](https://www.portainer.io/) via the script. |
+| **Secure Defaults** | Ensures proper service enabling and user permission handling. |
 
 ---
 
-## Menu Options
+## 📋 Capabilities
 
-During the script execution, you will be prompted to:
+The script guides you through a simplified menu to perform the following actions:
 
-1. **Install Docker** (automatically detects your OS and uses the correct method)
-2. **Create a new user** for Docker access (or add an existing user)
-3. **Set a password** for the new user
-4. **Add the user to the Docker group**
-5. **Install Portainer** (optional)
-
----
-
-## Notes
-
-- This script is intended for personal projects and may require adjustments for production or enterprise environments.
-- Always review scripts before running them on critical systems.
-- If you encounter issues, please open an [issue](https://github.com/Narehood/Docker-Prep/issues).
+1.  **Install Docker Engine**
+    *   *Updates repositories, installs dependencies, and sets up the Docker daemon.*
+2.  **User Configuration**
+    *   *Creates a new user specifically for Docker or adds your current user.*
+3.  **Security Groups**
+    *   *Adds the selected user to the `docker` group to allow non-root command execution.*
+4.  **Portainer Deployment**
+    *   *Pull and run the Portainer CE container on port 9443.*
 
 ---
 
-## License
+## ⚠️ Important Notes
 
-This project is licensed under the [MIT License](https://github.com/Narehood/Docker-Prep/blob/main/LICENSE).
+*   **Root Access:** This script must be run as root or with `sudo` privileges to install packages.
+*   **Re-Login Required:** After adding a user to the Docker group, you must **log out and log back in** for permissions to take effect.
+*   **Portainer:** If installed, Portainer will be accessible at `https://<your-ip>:9443`.
 
 ---
 
-> _You are free to use and modify this script as you wish. Bug reports are welcome, but fixes are not guaranteed._
+<div align="center">
+  <p><i>This project is licensed under the <a href="https://github.com/Narehood/Docker-Prep/blob/main/LICENSE">MIT License</a>.</i></p>
+  <p><i>You are free to use and modify this script as you wish.</i></p>
+</div>
