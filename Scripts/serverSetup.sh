@@ -72,15 +72,51 @@ install_docker_pacman() {
 }
 
 install_docker_apt() {
-    print_info "Installing Docker & Compose via APT..."
+    print_info "Installing Docker & Compose via APT (Official Repo)..."
+    
+    # 1. Update and install prerequisites
     apt-get update -q
-    # Install Prerequisites
-    apt-get install -y ca-certificates curl gnupg lsb-release
+    apt-get install -y ca-certificates curl gnupg
 
-    # Clean install of official packages (or distro maintained if preferred)
-    # Using distro packages for simplicity and stability on standard Debian/Ubuntu
-    apt-get install -y docker.io docker-compose-plugin
+    # 2. Setup Docker's official GPG key
+    install -m 0755 -d /etc/apt/keyrings
+    # Remove old key if it exists to avoid conflicts
+    rm -f /etc/apt/keyrings/docker.gpg
+    curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    chmod a+r /etc/apt/keyrings/docker.gpg
 
+    # 3. Add the repository
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        DISTRO_ID=$ID
+        
+        # Logic to map distro ID to the correct Docker repo (debian vs ubuntu)
+        if [[ "$DISTRO_ID" == "ubuntu" || "$DISTRO_ID" == "pop" || "$DISTRO_ID" == "linuxmint" ]]; then
+             REPO_TYPE="ubuntu"
+        else
+             # Default to debian for Kali, Raspbian, Debian, etc.
+             REPO_TYPE="debian"
+        fi
+        
+        # Get Codename reliably
+        CODENAME=$(lsb_release -cs 2>/dev/null || grep VERSION_CODENAME /etc/os-release | cut -d= -f2)
+        if [ -z "$CODENAME" ]; then
+            # Fallback for systems like Kali Rolling which don't have standard codenames
+            # "bookworm" is safe for modern Debian-based rolling distros
+            CODENAME="bookworm"
+        fi
+        
+        echo \
+          "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/$REPO_TYPE \
+          $CODENAME stable" | \
+          tee /etc/apt/sources.list.d/docker.list > /dev/null
+    fi
+
+    # 4. Update and Install Official Packages
+    apt-get update -q
+    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+    # 5. Enable Service
     systemctl enable --now docker
 }
 
