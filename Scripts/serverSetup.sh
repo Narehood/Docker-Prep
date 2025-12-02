@@ -1,6 +1,38 @@
 #!/bin/bash
 
-# Function to detect the OS
+# --- 1. DIRECTORY ANCHOR ---
+SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
+
+# --- 2. VISUAL STYLING ---
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+YELLOW='\033[1;33m'
+WHITE='\033[1;37m'
+NC='\033[0m' # No Color
+
+# --- 3. HELPER FUNCTIONS ---
+print_info() { echo -e "${CYAN}[INFO]${NC} $1"; }
+print_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
+print_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+print_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
+
+# --- 4. HEADER ---
+clear
+echo -e "${BLUE}===================================================================${NC}"
+echo -e "${CYAN}             DOCKER ENVIRONMENT PREP & INSTALLER           ${NC}"
+echo -e "${BLUE}===================================================================${NC}"
+echo ""
+
+# --- 5. ROOT CHECK ---
+if [ "$EUID" -ne 0 ]; then
+    print_error "Please run as root (sudo)."
+    exit 1
+fi
+
+# --- 6. OS DETECTION ---
 detect_os() {
     if [ -f /etc/os-release ]; then
         . /etc/os-release
@@ -8,165 +40,169 @@ detect_os() {
         VERSION=$VERSION_ID
     elif [ -f /etc/redhat-release ]; then
         OS="redhat"
-        VERSION=$(rpm -q --queryformat '%{VERSION}' centos-release)
     elif [ -f /etc/debian_version ]; then
         OS="debian"
-        VERSION=$(cat /etc/debian_version)
-    elif grep -q "Alpine Linux" /etc/os-release; then
-        OS="alpine"
-        VERSION=$(cat /etc/alpine-release | awk -F'.' '{print $1"."$2}') # Get major.minor version
     else
         OS=$(uname -s)
-        VERSION=$(uname -r)
     fi
 }
 
-# Function to install Docker using apk (Alpine)
+# --- 7. INSTALLATION FUNCTIONS ---
+
 install_docker_apk() {
-    local ALPINE_VERSION=$(apk --version | head -n 1 | awk '{print $NF}' | cut -d- -f1)
+    print_info "Configuring Alpine repositories..."
+    local ALPINE_VERSION=$(apk --version | head -n 1 | awk '{print $NF}' | cut -d- -f1 | cut -d'.' -f1,2)
+    local REPO_URL="https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/community"
 
-    # Determine the correct repository based on Alpine version
-    local REPO_URL=""
-    case "$ALPINE_VERSION" in
-        3.18)
-            REPO_URL="https://dl-cdn.alpinelinux.org/alpine/v3.18/community"
-            ;;
-        3.19)
-            REPO_URL="https://dl-cdn.alpinelinux.org/alpine/v3.19/community"
-            ;;
-        3.20)
-            REPO_URL="https://dl-cdn.alpinelinux.org/alpine/v3.20/community"
-            ;;
-        3.21)
-            REPO_URL="https://dl-cdn.alpinelinux.org/alpine/v3.21/community"
-            ;;
-        3.22)
-            REPO_URL="https://dl-cdn.alpinelinux.org/alpine/v3.22/community"
-            ;;
-        *)
-            echo "Warning: Unsupported Alpine version ($ALPINE_VERSION). Trying edge repository."
-            REPO_URL="https://dl-cdn.alpinelinux.org/alpine/edge/community"
-            ;;
-    esac
-
-    echo "Adding repository: $REPO_URL to /etc/apk/repositories"
     if ! grep -q "$REPO_URL" /etc/apk/repositories; then
-        echo "$REPO_URL" | sudo tee -a /etc/apk/repositories
+        echo "$REPO_URL" >> /etc/apk/repositories
     fi
-    sudo apk update
-    sudo apk add docker docker-cli-compose
-    sudo rc-update add docker default
-    sudo service docker start
-    sudo addgroup $(whoami) docker || sudo adduser $(whoami) docker # Use adduser for group if addgroup fails
-    echo "Please log out and log back in for Docker group changes to take effect."
+    
+    print_info "Installing Docker & Compose via APK..."
+    apk update
+    apk add docker docker-cli-compose
+    rc-update add docker default
+    service docker start
 }
 
-# Function to install Docker using pacman (Arch)
 install_docker_pacman() {
-    sudo pacman -Syu --noconfirm docker
-    sudo systemctl start docker
-    sudo systemctl enable docker
-    sudo usermod -aG docker $USER
+    print_info "Installing Docker & Compose via Pacman..."
+    pacman -Syu --noconfirm docker docker-compose
+    systemctl enable --now docker
 }
 
-# Function to install Docker using apt (Debian/Ubuntu)
 install_docker_apt() {
-    sudo apt update && sudo apt upgrade -y
-    sudo apt install -y docker.io
-    sudo systemctl start docker
-    sudo systemctl enable docker
-    sudo usermod -aG docker $USER
-    docker --version
+    print_info "Installing Docker & Compose via APT..."
+    apt-get update -q
+    # Install Prerequisites
+    apt-get install -y ca-certificates curl gnupg lsb-release
+
+    # Clean install of official packages (or distro maintained if preferred)
+    # Using distro packages for simplicity and stability on standard Debian/Ubuntu
+    apt-get install -y docker.io docker-compose-plugin
+
+    systemctl enable --now docker
 }
 
-# Function to install Docker using dnf (Fedora)
 install_docker_dnf() {
-    REPO_URL="/etc/yum.repos.d/docker-ce.repo"
-    if [ ! -f "$REPO_URL" ]; then
-        sudo dnf -y install dnf-plugins-core
-        sudo dnf config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo
+    print_info "Configuring Docker CE Repo..."
+    if [ ! -f "/etc/yum.repos.d/docker-ce.repo" ]; then
+        dnf -y install dnf-plugins-core
+        dnf config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo
     fi
-    sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-    sudo systemctl start docker
-    sudo systemctl enable docker
-    sudo usermod -aG docker $USER
+    print_info "Installing Docker & Compose via DNF..."
+    dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    systemctl enable --now docker
 }
 
-# Function to install Docker using yum (CentOS/RHEL/Rocky/Alma)
 install_docker_yum() {
-    REPO_URL="/etc/yum.repos.d/docker-ce.repo"
-    if [ ! -f "$REPO_URL" ]; then
-        sudo yum install -y yum-utils
-        sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+    print_info "Configuring Docker CE Repo..."
+    if [ ! -f "/etc/yum.repos.d/docker-ce.repo" ]; then
+        yum install -y yum-utils
+        yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
     fi
-    sudo yum install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-    sudo systemctl start docker
-    sudo systemctl enable docker
-    sudo usermod -aG docker $USER
+    print_info "Installing Docker & Compose via Yum..."
+    yum install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    systemctl enable --now docker
 }
 
-# Function to install Docker using zypper (SUSE)
 install_docker_zypper() {
-    sudo zypper refresh
-    sudo zypper install -y docker
-    sudo systemctl start docker
-    sudo systemctl enable docker
-    sudo usermod -aG docker $USER
+    print_info "Installing Docker via Zypper..."
+    zypper refresh
+    zypper install -y docker docker-compose
+    systemctl enable --now docker
 }
 
-# Check for root privileges at the beginning
-if [ "$EUID" -ne 0 ]; then
-    echo "This script requires root privileges to install Docker."
-    echo "Please run with sudo: sudo $0"
-    exit 1
-fi
+# --- 8. MAIN LOGIC ---
 
-# Check if Docker is installed
+# Detect OS
+detect_os
+echo -e "${WHITE}Detected OS:${NC} $OS"
+
+# Check/Install Docker
 if ! command -v docker &> /dev/null; then
-    echo "Docker is not installed. Installing Docker..."
-    detect_os
+    echo -e "${YELLOW}Docker not found. Beginning installation...${NC}"
     case "$OS" in
-        alpine)
-            install_docker_apk
-            ;;
-        arch)
-            install_docker_pacman
-            ;;
-        debian|ubuntu)
-            install_docker_apt
-            ;;
-        fedora)
-            install_docker_dnf
-            ;;
-        redhat|centos|rocky|almalinux)
-            install_docker_yum
-            ;;
-        suse)
-            install_docker_zypper
-            ;;
-        *)
-            echo "Unsupported system. Please install Docker manually."
-            exit 1
+        alpine) install_docker_apk ;;
+        arch|manjaro) install_docker_pacman ;;
+        debian|ubuntu|kali|pop|linuxmint) install_docker_apt ;;
+        fedora) install_docker_dnf ;;
+        redhat|centos|rocky|almalinux) install_docker_yum ;;
+        suse|opensuse*) install_docker_zypper ;;
+        *) 
+            print_error "Unsupported system ($OS). Please install Docker manually."
+            exit 1 
             ;;
     esac
+    
+    if command -v docker &> /dev/null; then
+        print_success "Docker Engine installed."
+        # Check Compose
+        if docker compose version &> /dev/null; then
+            print_success "Docker Compose (Plugin) installed."
+        else
+            print_warn "Docker installed, but 'docker compose' command failed."
+        fi
+    else
+        print_error "Docker installation failed."
+        exit 1
+    fi
 else
-    echo "Docker is already installed. Skipping Docker installation."
+    print_success "Docker is already installed."
 fi
 
-# Ask the user if they want to install Portainer
-read -p "Would you like to install Portainer? (y/N): " install_portainer
-install_portainer=${install_portainer:-n}
+# --- 9. USER PERMISSIONS ---
+echo ""
+echo -e "${WHITE}--- USER CONFIGURATION ---${NC}"
+echo "Docker runs as root by default. To run without 'sudo', add a user to the group."
+read -p "Enter username to add to 'docker' group (leave blank to skip): " DOCKER_USER
 
-if [ "$install_portainer" == "y" ]; then
-    docker volume create portainer_data
-    docker run -d -p 9000:9000 --name=portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce
+if [ -n "$DOCKER_USER" ]; then
+    if id "$DOCKER_USER" &>/dev/null; then
+        # Handle group adding based on OS tools
+        if command -v usermod &> /dev/null; then
+            usermod -aG docker "$DOCKER_USER"
+        elif command -v addgroup &> /dev/null; then
+            # Alpine usually
+            addgroup "$DOCKER_USER" docker
+        fi
+        print_success "User '$DOCKER_USER' added to docker group."
+        print_warn "User must log out and back in for this to take effect."
+    else
+        print_error "User '$DOCKER_USER' does not exist."
+    fi
+fi
 
-    # Get the IP address of the machine
+# --- 10. PORTAINER SETUP ---
+echo ""
+echo -e "${WHITE}--- OPTIONAL COMPONENTS ---${NC}"
+read -p "Install Portainer CE (Web UI)? (y/N): " install_portainer
+
+if [[ "$install_portainer" =~ ^[Yy]$ ]]; then
+    print_info "Deploying Portainer..."
+    
+    # Create Volume
+    docker volume create portainer_data >/dev/null
+    
+    # Run Container (Exposing 9443 for HTTPS and 9000 for legacy HTTP)
+    docker run -d -p 8000:8000 -p 9443:9443 -p 9000:9000 \
+        --name=portainer --restart=always \
+        -v /var/run/docker.sock:/var/run/docker.sock \
+        -v portainer_data:/data \
+        portainer/portainer-ce:latest
+
+    # Get IP
     IP_ADDRESS=$(hostname -I | awk '{print $1}')
-
-    echo "Portainer installation complete. You can access it at http://$IP_ADDRESS:9000 or your domain if configured."
+    
+    print_success "Portainer deployed."
+    echo -e "Access via HTTPS: ${YELLOW}https://${IP_ADDRESS}:9443${NC}"
+    echo -e "Access via HTTP:  ${YELLOW}http://${IP_ADDRESS}:9000${NC}"
 else
-    echo "Skipping Portainer installation."
+    print_info "Skipping Portainer."
 fi
 
-echo "Docker installation is complete. You should add the docker group to a non-root user for running Docker commands."
+echo ""
+echo -e "${BLUE}===================================================================${NC}"
+print_success "Docker Preparation Complete."
+echo -e "${BLUE}===================================================================${NC}"
+echo ""
