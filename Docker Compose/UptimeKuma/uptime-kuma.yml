@@ -9,8 +9,6 @@ services:
       - "3001:3001"
     volumes:
       - uptime-kuma-data:/app/data
-    security_opt:
-      - no-new-privileges:true
 
 volumes:
   uptime-kuma-data:
