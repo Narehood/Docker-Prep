@@ -1,25 +1,53 @@
 version: "3"
 services:
   adguardhome-sync:
-    image: quay.io/bakito/adguardhome-sync
+    image: ghcr.io/bakito/adguardhome-sync
     container_name: adguardhome-sync
     command: run
     environment:
-      - ORIGIN_URL=https://0.0.0.0 #change as necessary
-      - ORIGIN_USERNAME=username #change as necessary
-      - ORIGIN_PASSWORD=password #change as necessary
-      - REPLICA_URL=https://0.0.0.0 #change as necessary
-      - REPLICA_USERNAME=username #change as necessary
-      - REPLICA_PASSWORD=password #change as necessary
-      - REPLICA1_URL=https://0.0.0.0 #change as necessary
-      - REPLICA1_USERNAME=username #change as necessary
-      - REPLICA1_PASSWORD=password #change as necessary
-      - FEATURES_DNS_SERVER_CONFIG=false
+      - ORIGIN_URL=https://yourdomain #change as necessary ASSUMES SSL IS CONFIGURED
+      - ORIGIN_USERNAME=userName #change as necessary
+      - ORIGIN_PASSWORD=yourPassword #change as necessary
+      - REPLICA1_URL=https://yourdomain #change as necessary ASSUMES SSL IS CONFIGURED
+      - REPLICA1_USERNAME=userName #change as necessary
+      - REPLICA1_PASSWORD=yourPassword #change as necessary
+      - REPLICA2_URL=https://yourdomain #change as necessary ASSUMES SSL IS CONFIGURED
+      - REPLICA2_USERNAME=userName #change as necessary
+      - REPLICA2_PASSWORD=yourPassword #change as necessary
+
+      - FEATURES_DNS_SERVER_CONFIG=true
+      - FEATURES_STATS_CONFIG=false
+      - FEATURES_FILTERS=true
+      - FEATURES_THEME=true
+      - REWRITES=true
+      - SERVERCONFIG=true
+      - GENERALSETTINGS=true
+
       - RUNONSTART=true
       - CRON=*/5 * * * * # run every 5 minutes
+
+      # Enable API and Metrics
+      - ADGUARDHOME_SYNC_API_ENABLED=true
+      - ADGUARDHOME_SYNC_METRICS_ENABLED=true
+
+      # Internal API and Consolidated Dashboard settings
+      - API_PORT=8080
+      - API_METRICS_ENABLED=true
+      - API_METRICS_SCRAPE_INTERVAL=1m
+      - API_DARK_MODE=true
+      
     ports:
       - 8080:8080 #change as necessary
+      - 8081:8081
     restart: unless-stopped    
+    
+    
+################
+#
+# Original Source: 
+# https://github.com/bakito/adguardhome-sync
+#
+################
     
     
 ################
