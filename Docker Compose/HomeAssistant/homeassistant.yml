@@ -6,11 +6,24 @@ services:
     restart: always
     network_mode: 'host'
     ports:
-      - '8123:8123'  # Home Assistant web interface
+      - '8123:8123'
     volumes:
       - homeassistant_config:/config
     environment:
-      - TZ=America/New_York  # Set your timezone
+      - TZ=America/New_York
+
+  matter-server:
+    image: 'ghcr.io/home-assistant-libs/python-matter-server:stable'
+    container_name: matter-server
+    restart: always
+    network_mode: 'host'
+    ports:
+      - '5580:5580'
+    volumes:
+      - matter_data:/data
+    environment:
+      - TZ=America/New_York
 
 volumes:
   homeassistant_config:
+  matter_data:
