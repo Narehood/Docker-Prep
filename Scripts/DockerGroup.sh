@@ -6,8 +6,8 @@
 # DESCRIPTION: Add a user to the docker group
 
 # DIRECTORY ANCHOR
-SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
-SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_PATH="$SCRIPT_DIR/$(basename -- "${BASH_SOURCE[0]}")"
 
 # VISUAL STYLING
 RED='\033[0;31m'
