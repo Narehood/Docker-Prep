@@ -16,7 +16,7 @@ WHITE='\033[1;37m'
 NC='\033[0m'
 
 UI_WIDTH=86
-VERSION="2.2.0"
+VERSION="2.3.0"
 
 # Handle Ctrl+C gracefully
 trap 'echo -e "\n${GREEN}Goodbye!${NC}"; exit 0' INT
@@ -515,18 +515,24 @@ show_docker_info() {
     pause
 }
 
+install_portainer() {
+    execute_script "portainer-install.sh"
+}
+
 # Menu options
 declare -A MENU_OPTIONS=(
     [1]="install_docker:Install Docker Engine"
     [2]="add_user_to_docker_group:Add User to Docker Group"
-    [3]="show_docker_info:Docker System Info"
-    [4]="check_for_updates:Check for Updates"
+    [3]="install_portainer:Install Portainer"
+    [4]="show_docker_info:Docker System Info"
+    [5]="check_for_updates:Check for Updates"
 )
 
 show_menu() {
     echo -e "${WHITE}DOCKER CONFIGURATION${NC}"
-    printf "  ${CYAN}1.${NC} %-43s ${CYAN}3.${NC} %s\n" "Install Docker Engine" "Docker System Info"
-    printf "  ${CYAN}2.${NC} %-43s ${CYAN}4.${NC} %s\n" "Add User to Docker Group" "Check for Updates"
+    printf "  ${CYAN}1.${NC} %-43s ${CYAN}4.${NC} %s\n" "Install Docker Engine" "Docker System Info"
+    printf "  ${CYAN}2.${NC} %-43s ${CYAN}5.${NC} %s\n" "Add User to Docker Group" "Check for Updates"
+    printf "  ${CYAN}3.${NC} %s\n" "Install Portainer"
     echo ""
     printf "  ${CYAN}0.${NC} ${RED}%s${NC}\n" "Return to Main Menu"
     echo ""
@@ -539,13 +545,14 @@ while true; do
     show_stats
     show_menu
 
-    read -rp "  Enter selection [0-4]: " choice
+    read -rp "  Enter selection [0-5]: " choice
 
     case "$choice" in
         1) install_docker ;;
         2) add_user_to_docker_group ;;
-        3) show_docker_info ;;
-        4) check_for_updates ;;
+        3) install_portainer ;;
+        4) show_docker_info ;;
+        5) check_for_updates ;;
         0|q|exit)
             echo -e "\n${GREEN}Returning to Main Menu...${NC}"
             exit 0
