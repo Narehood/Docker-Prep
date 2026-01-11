@@ -145,12 +145,25 @@ set_password() {
 # If the docker group does not exist the function warns and returns; after attempting to add the user it verifies membership and reports success or failure.
 add_to_docker_group() {
     local username="$1"
+    local add_docker
+    local docker_group_exists=false
 
     echo ""
     read -rp "Add '$username' to docker group? [y/N]: " add_docker
     
     if [[ "$add_docker" =~ ^[Yy]$ ]]; then
-        if ! getent group docker &>/dev/null; then
+        # Check for docker group existence with fallback for missing getent
+        if command -v getent &>/dev/null; then
+            getent group docker &>/dev/null && docker_group_exists=true
+        elif [[ -f /etc/group ]]; then
+            grep -q "^docker:" /etc/group && docker_group_exists=true
+        else
+            print_warn "Unable to verify docker group (getent unavailable, /etc/group missing)."
+            print_info "Skipping docker group membership."
+            return
+        fi
+
+        if [[ "$docker_group_exists" != true ]]; then
             print_warn "Docker group does not exist."
             print_info "Install Docker first or run the Docker Group script later."
             return
@@ -165,7 +178,8 @@ add_to_docker_group() {
                 ;;
         esac
 
-        if groups "$username" 2>/dev/null | grep -qw docker; then
+        # Verify membership using id (more reliable than groups command)
+        if id -nG "$username" 2>/dev/null | tr ' ' '\n' | grep -qx "docker"; then
             print_success "User '$username' added to docker group."
         else
             print_error "Failed to add user to docker group."
