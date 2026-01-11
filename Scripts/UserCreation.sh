@@ -115,7 +115,7 @@ create_user() {
             adduser -D "$username"
             ;;
         centos|rhel|fedora|rocky|almalinux)
-            useradd "$username"
+            useradd -m -s /bin/bash "$username"
             ;;
         *)
             print_error "Unsupported OS for user creation."
