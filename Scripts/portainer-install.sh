@@ -160,7 +160,7 @@ deploy_portainer() {
     if [ ! -w "/opt" ]; then
         if [ "$EUID" -ne 0 ]; then
             print_warn "Root privileges required to create $compose_dir"
-            read -rp "  Run with sudo? (Y/n): " use_sudo
+            read -rp "  Use sudo for directory creation? (Y/n): " use_sudo
             use_sudo="${use_sudo:-y}"
             if [[ ! "$use_sudo" =~ ^[Yy]$ ]]; then
                 print_info "Cancelled."
