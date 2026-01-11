@@ -107,9 +107,13 @@ check_existing_portainer() {
         case "$choice" in
             1)
                 print_info "Removing existing deployment..."
-                (cd /opt/portainer && docker compose -f "$compose_file" down) &>/dev/null
-                print_success "Existing deployment removed."
-                return 0
+                if (cd /opt/portainer && docker compose -f "$compose_file" down) &>/dev/null; then
+                    print_success "Existing deployment removed."
+                    return 0
+                else
+                    print_error "Failed to remove existing deployment."
+                    return 1
+                fi
                 ;;
             *)
                 print_info "Installation cancelled."
@@ -133,10 +137,13 @@ check_existing_portainer() {
         case "$choice" in
             1)
                 print_info "Removing existing Portainer..."
-                docker stop portainer &>/dev/null
-                docker rm portainer &>/dev/null
-                print_success "Existing container removed."
-                return 0
+                if docker stop portainer &>/dev/null && docker rm portainer &>/dev/null; then
+                    print_success "Existing container removed."
+                    return 0
+                else
+                    print_error "Failed to remove existing container."
+                    return 1
+                fi
                 ;;
             *)
                 print_info "Installation cancelled."
