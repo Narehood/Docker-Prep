@@ -5,7 +5,7 @@
 # Version: 1.1.0
 
 # DIRECTORY ANCHOR
-SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
 SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
 
 # VISUAL STYLING
