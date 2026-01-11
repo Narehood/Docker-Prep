@@ -2,6 +2,7 @@
 
 # Portainer CE Installation Script
 # Deploys Portainer using the official LTS compose file
+# Version: 1.1.0
 
 # DIRECTORY ANCHOR
 SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
@@ -39,17 +40,14 @@ check_dependencies() {
 
     print_info "Checking dependencies..."
 
-    # Check curl
     if ! command -v curl &>/dev/null; then
         missing+=("curl")
     fi
 
-    # Check docker
     if ! command -v docker &>/dev/null; then
         missing+=("docker")
     fi
 
-    # Check docker compose
     if command -v docker &>/dev/null; then
         if ! docker compose version &>/dev/null; then
             missing+=("docker-compose-plugin")
@@ -70,7 +68,6 @@ check_dependencies() {
     return 0
 }
 
-# Check if Docker daemon is running
 check_docker_running() {
     print_info "Checking Docker daemon..."
 
@@ -88,11 +85,9 @@ check_docker_running() {
     return 0
 }
 
-# Check if Portainer is already installed
 check_existing_portainer() {
     print_info "Checking for existing Portainer installation..."
 
-    # Check for compose deployment
     local compose_file="/opt/portainer/portainer-compose.yaml"
     if [ -f "$compose_file" ]; then
         print_warn "Existing Portainer compose deployment detected."
@@ -102,7 +97,7 @@ check_existing_portainer() {
         echo "  2) Cancel installation"
         echo ""
         read -rp "  Select option [1-2]: " choice
-        
+
         case "$choice" in
             1)
                 print_info "Removing existing deployment..."
@@ -147,7 +142,44 @@ check_existing_portainer() {
     return 0
 }
 
-# Download and deploy Portainer
+# Validate compose file structure
+validate_compose_file() {
+    local compose_file="$1"
+
+    print_info "Validating compose file..."
+
+    if [ ! -f "$compose_file" ]; then
+        print_error "Compose file not found."
+        return 1
+    fi
+
+    if [ ! -s "$compose_file" ]; then
+        print_error "Compose file is empty."
+        return 1
+    fi
+
+    # Check for expected Portainer service definition
+    if ! grep -q "portainer" "$compose_file"; then
+        print_error "Compose file does not contain expected Portainer service."
+        return 1
+    fi
+
+    # Check for portainer image reference
+    if ! grep -qE "portainer/portainer-ce" "$compose_file"; then
+        print_error "Compose file does not reference official Portainer CE image."
+        return 1
+    fi
+
+    # Validate YAML syntax using docker compose
+    if ! $SUDO docker compose -f "$compose_file" config &>/dev/null; then
+        print_error "Compose file has invalid YAML syntax."
+        return 1
+    fi
+
+    print_success "Compose file validated."
+    return 0
+}
+
 deploy_portainer() {
     local compose_url="https://downloads.portainer.io/ce-lts/portainer-compose.yaml"
     local compose_dir="/opt/portainer"
@@ -156,7 +188,6 @@ deploy_portainer() {
     echo ""
     print_info "Deploying Portainer CE (LTS)..."
 
-    # Check for root/sudo for /opt access
     if [ ! -w "/opt" ]; then
         if [ "$EUID" -ne 0 ]; then
             print_warn "Root privileges required to create $compose_dir"
@@ -174,7 +205,6 @@ deploy_portainer() {
         SUDO=""
     fi
 
-    # Create directory
     print_info "Creating directory: $compose_dir"
     $SUDO mkdir -p "$compose_dir"
     if [ $? -ne 0 ]; then
@@ -182,8 +212,9 @@ deploy_portainer() {
         return 1
     fi
 
-    # Download compose file
     print_info "Downloading Portainer compose file..."
+    print_info "Source: $compose_url"
+
     if $SUDO curl -fsSL "$compose_url" -o "$compose_file"; then
         print_success "Compose file downloaded."
     else
@@ -191,7 +222,14 @@ deploy_portainer() {
         return 1
     fi
 
-    # Deploy with docker compose
+    # Validate the downloaded file
+    if ! validate_compose_file "$compose_file"; then
+        print_error "Downloaded compose file failed validation."
+        print_warn "The file may have been corrupted or the source may be compromised."
+        $SUDO rm -f "$compose_file"
+        return 1
+    fi
+
     print_info "Starting Portainer containers..."
     echo ""
 
@@ -208,7 +246,6 @@ deploy_portainer() {
     return 0
 }
 
-# Display access information
 show_access_info() {
     echo ""
     print_line
@@ -216,7 +253,6 @@ show_access_info() {
     print_line
     echo ""
 
-    # Get IP address
     local ip_addr="localhost"
     if command -v ip &>/dev/null; then
         ip_addr=$(ip -4 addr show scope global 2>/dev/null | awk '/inet / {print $2; exit}' | cut -d/ -f1)
@@ -235,8 +271,6 @@ show_access_info() {
     echo "    - HTTPS uses a self-signed certificate (browser warning expected)"
     echo "    - Compose file location: /opt/portainer/portainer-compose.yaml"
     echo ""
-
-    # Management commands
     echo -e "  ${WHITE}Management Commands:${NC}"
     echo "    Stop:    docker compose -f /opt/portainer/portainer-compose.yaml down"
     echo "    Start:   docker compose -f /opt/portainer/portainer-compose.yaml up -d"
@@ -247,7 +281,6 @@ show_access_info() {
 
 # MAIN
 main() {
-    # Run checks
     if ! check_dependencies; then
         echo ""
         exit 1
@@ -267,7 +300,6 @@ main() {
         exit 0
     fi
 
-    # Deploy
     if deploy_portainer; then
         show_access_info
     else
