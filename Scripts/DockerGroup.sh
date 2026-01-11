@@ -18,12 +18,16 @@ YELLOW='\033[1;33m'
 WHITE='\033[1;37m'
 NC='\033[0m'
 
-# HELPER FUNCTIONS
+# print_info prints an informational message prefixed with a cyan `[INFO]` tag.
 print_info() { echo -e "${CYAN}[INFO]${NC} $1"; }
+# print_success prints a green "[OK]" prefix followed by the given message to stdout.
 print_success() { echo -e "${GREEN}[OK]${NC} $1"; }
+# print_error prints an error message prefixed with "[ERROR]" in red and resets the terminal color afterward.
 print_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+# print_warn prints a warning message prefixed with "[WARN]" using the YELLOW color and resets the terminal color.
 print_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 
+# print_line prints a blue separator line to stdout using the $BLUE color and resets color with $NC.
 print_line() {
     echo -e "${BLUE}===================================================================${NC}"
 }
@@ -41,7 +45,7 @@ if [[ "$EUID" -ne 0 ]]; then
     exit 1
 fi
 
-# OS DETECTION
+# detect_os sets the global `OS` variable to the detected operating system identifier (prefers `/etc/os-release` ID, falls back to common distro files or the lowercased system name).
 detect_os() {
     OS="unknown"
     if [[ -f /etc/os-release ]]; then
@@ -60,7 +64,7 @@ detect_os
 echo -e "${WHITE}Detected OS:${NC} $OS"
 echo ""
 
-# Check if docker is installed
+# check_docker_installed checks whether Docker is available; if not, it prints an error and informational message and exits with status 1.
 check_docker_installed() {
     if ! command -v docker &>/dev/null; then
         print_error "Docker is not installed."
@@ -70,7 +74,7 @@ check_docker_installed() {
     print_success "Docker is installed."
 }
 
-# Check if docker group exists, create if not
+# ensure_docker_group ensures the `docker` group exists on the system, creating it with `addgroup` on Alpine or `groupadd` on other OSes and exiting with status 1 if creation fails.
 ensure_docker_group() {
     if ! getent group docker &>/dev/null; then
         print_warn "Docker group does not exist. Creating it..."
@@ -94,7 +98,7 @@ ensure_docker_group() {
     fi
 }
 
-# Add user to docker group based on OS
+# add_user_to_docker_group adds a user to the docker group using an OS-appropriate command and returns 0 on success or 1 on failure.
 add_user_to_docker_group() {
     local username="$1"
 
@@ -118,13 +122,13 @@ add_user_to_docker_group() {
     esac
 }
 
-# Check if user is already in docker group
+# user_in_docker_group checks whether the specified user is a member of the docker group.
 user_in_docker_group() {
     local username="$1"
     groups "$username" 2>/dev/null | grep -qw docker
 }
 
-# List current docker group members
+# show_docker_group_members prints the current members of the 'docker' group, or "(none)" if the group has no members.
 show_docker_group_members() {
     echo ""
     print_info "Current docker group members:"

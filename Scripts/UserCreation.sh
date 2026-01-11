@@ -18,12 +18,16 @@ YELLOW='\033[1;33m'
 WHITE='\033[1;37m'
 NC='\033[0m'
 
-# HELPER FUNCTIONS
+# print_info prints an informational message prefixed with "[INFO]" in cyan.
 print_info() { echo -e "${CYAN}[INFO]${NC} $1"; }
+# print_success prints a success message prefixed with a green "[OK]" tag followed by the provided message.
 print_success() { echo -e "${GREEN}[OK]${NC} $1"; }
+# print_error prints MESSAGE prefixed with "[ERROR]" in red and resets terminal color.
 print_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+# print_warn prints a warning message prefixed with `[WARN]` in yellow to stdout.
 print_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 
+# print_line prints a blue horizontal separator line to stdout.
 print_line() {
     echo -e "${BLUE}===================================================================${NC}"
 }
@@ -41,7 +45,7 @@ if [[ "$EUID" -ne 0 ]]; then
     exit 1
 fi
 
-# OS DETECTION
+# detect_os detects the host operating system and sets the global variable `OS` to a lowercase identifier (e.g., "ubuntu", "debian", "redhat") or "unknown" if detection fails.
 detect_os() {
     OS="unknown"
     if [[ -f /etc/os-release ]]; then
@@ -60,7 +64,7 @@ detect_os
 echo -e "${WHITE}Detected OS:${NC} $OS"
 echo ""
 
-# Validate OS support
+# validate_os verifies that the detected OS is one of the supported distributions and prints a success message; if the OS is unsupported it prints an error and exits with status 1.
 validate_os() {
     case "$OS" in
         ubuntu|debian|centos|rhel|fedora|rocky|almalinux|alpine)
@@ -97,7 +101,7 @@ if id "$username" &>/dev/null; then
     exit 1
 fi
 
-# Create user based on OS
+# create_user creates a system user with the given username using the OS's preferred user-creation command.
 create_user() {
     local username="$1"
 
@@ -120,7 +124,7 @@ create_user() {
     esac
 }
 
-# Set user password
+# set_password prompts for and applies a password for the specified user; exits with code 1 if setting the password fails.
 set_password() {
     local username="$1"
 
@@ -133,7 +137,8 @@ set_password() {
     print_success "Password set successfully."
 }
 
-# Prompt for docker group membership
+# add_to_docker_group prompts whether to add a user to the docker group and, if confirmed, adds the user using OS-specific commands.
+# If the docker group does not exist the function warns and returns; after attempting to add the user it verifies membership and reports success or failure.
 add_to_docker_group() {
     local username="$1"
 

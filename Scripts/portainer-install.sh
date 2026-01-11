@@ -17,12 +17,16 @@ YELLOW='\033[1;33m'
 WHITE='\033[1;37m'
 NC='\033[0m'
 
-# HELPER FUNCTIONS
+# print_info prints an informational message prefixed with `[INFO]` in cyan.
 print_info() { echo -e "${CYAN}[INFO]${NC} $1"; }
+# print_success prints a success message prefixed with "[OK]" in green to stdout.
 print_success() { echo -e "${GREEN}[OK]${NC} $1"; }
+# print_error prints an error message prefixed with "[ERROR]" in red and resets terminal color.
 print_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+# print_warn prints a warning message prefixed with [WARN] in yellow to stdout.
 print_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 
+# print_line prints a blue horizontal separator line to stdout.
 print_line() {
     echo -e "${BLUE}===================================================================${NC}"
 }
@@ -34,7 +38,7 @@ echo -e "${CYAN}                    PORTAINER CE INSTALLER                      
 print_line
 echo ""
 
-# DEPENDENCY CHECKS
+# check_dependencies verifies that `curl`, `docker`, and the Docker Compose plugin are present, prints which dependencies (if any) are missing, and returns a non‑zero status when requirements are unmet.
 check_dependencies() {
     local missing=()
 
@@ -68,6 +72,7 @@ check_dependencies() {
     return 0
 }
 
+# check_docker_running checks whether the Docker daemon is running and accessible and prints remediation hints if it is not.
 check_docker_running() {
     print_info "Checking Docker daemon..."
 
@@ -85,6 +90,7 @@ check_docker_running() {
     return 0
 }
 
+# check_existing_portainer checks for an existing Portainer compose file or container, prompts the user to remove it or cancel, and returns 0 if no conflicting deployment (or after removal) or 1 if the user cancels installation.
 check_existing_portainer() {
     print_info "Checking for existing Portainer installation..."
 
@@ -142,7 +148,7 @@ check_existing_portainer() {
     return 0
 }
 
-# Validate compose file structure
+# validate_compose_file validates a Docker Compose file for Portainer by checking that the file exists and is non-empty, contains a Portainer service and the official `portainer/portainer-ce` image reference, and has valid YAML syntax according to `docker compose config`; returns 0 on success and 1 on failure.
 validate_compose_file() {
     local compose_file="$1"
 
@@ -180,6 +186,7 @@ validate_compose_file() {
     return 0
 }
 
+# deploy_portainer Deploys Portainer CE (LTS) to /opt/portainer by creating the target directory (prompting to use sudo if required), downloading and validating the official compose file, and starting the stack with docker compose; returns 0 on success or 1 on failure.
 deploy_portainer() {
     local compose_url="https://downloads.portainer.io/ce-lts/portainer-compose.yaml"
     local compose_dir="/opt/portainer"
@@ -246,6 +253,7 @@ deploy_portainer() {
     return 0
 }
 
+# show_access_info displays detected host IP, Portainer Web UI URLs (HTTP/HTTPS), notes about first-time admin and self-signed certificate, and common management commands.
 show_access_info() {
     echo ""
     print_line
@@ -279,7 +287,7 @@ show_access_info() {
     print_line
 }
 
-# MAIN
+# main orchestrates the Portainer CE installation workflow: it runs dependency and Docker checks, handles existing deployments, attempts deployment, and displays access information on success.
 main() {
     if ! check_dependencies; then
         echo ""
