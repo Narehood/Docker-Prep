@@ -463,6 +463,7 @@ add_user_to_docker_group() {
     pause
 }
 
+# show_docker_info displays Docker system information, including client/server versions, running/stopped container and image counts, and disk usage; it prints warnings if Docker is not installed or the daemon is unreachable and returns a non-zero status on failure.
 show_docker_info() {
     echo ""
     print_line "=" "$BLUE"
@@ -515,6 +516,7 @@ show_docker_info() {
     pause
 }
 
+# install_portainer installs Portainer by invoking the Scripts/portainer-install.sh installer.
 install_portainer() {
     execute_script "portainer-install.sh"
 }
@@ -528,6 +530,7 @@ declare -A MENU_OPTIONS=(
     [5]="check_for_updates:Check for Updates"
 )
 
+# show_menu displays the interactive Docker configuration menu with numbered options for installing Docker, adding a user to the docker group, installing Portainer, viewing Docker system info, checking for updates, and returning to the main menu.
 show_menu() {
     echo -e "${WHITE}DOCKER CONFIGURATION${NC}"
     printf "  ${CYAN}1.${NC} %-43s ${CYAN}4.${NC} %s\n" "Install Docker Engine" "Docker System Info"
