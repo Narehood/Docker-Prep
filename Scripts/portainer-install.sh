@@ -92,6 +92,31 @@ check_docker_running() {
 check_existing_portainer() {
     print_info "Checking for existing Portainer installation..."
 
+    # Check for compose deployment
+    local compose_file="/opt/portainer/portainer-compose.yaml"
+    if [ -f "$compose_file" ]; then
+        print_warn "Existing Portainer compose deployment detected."
+        echo ""
+        echo "Options:"
+        echo "  1) Remove and reinstall (will preserve data volume)"
+        echo "  2) Cancel installation"
+        echo ""
+        read -rp "  Select option [1-2]: " choice
+        
+        case "$choice" in
+            1)
+                print_info "Removing existing deployment..."
+                (cd /opt/portainer && docker compose -f "$compose_file" down) &>/dev/null
+                print_success "Existing deployment removed."
+                return 0
+                ;;
+            *)
+                print_info "Installation cancelled."
+                return 1
+                ;;
+        esac
+    fi
+
     if docker ps -a --format '{{.Names}}' | grep -q "^portainer$"; then
         local status
         status=$(docker inspect -f '{{.State.Status}}' portainer 2>/dev/null)
