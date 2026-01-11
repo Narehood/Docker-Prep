@@ -206,6 +206,7 @@ echo -e "${GREEN}                    USER CREATION COMPLETE                     
 print_line
 echo ""
 echo -e "  ${WHITE}Username:${NC} $username"
-echo -e "  ${WHITE}Home:${NC}     /home/$username"
+HOME_DIR=$(getent passwd "$username" | cut -d: -f6)
+echo -e "  ${WHITE}Home:${NC}     ${HOME_DIR:-/home/$username}"
 echo ""
 print_line
