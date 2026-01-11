@@ -7,7 +7,6 @@
 
 # DIRECTORY ANCHOR
 SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
-SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
 
 # VISUAL STYLING
 RED='\033[0;31m'
@@ -45,18 +44,23 @@ if [[ "$EUID" -ne 0 ]]; then
     exit 1
 fi
 
-# detect_os detects the host operating system and sets the global variable `OS` to a lowercase identifier (e.g., "ubuntu", "debian", "redhat") or "unknown" if detection fails.
+# detect_os detects the host operating system and sets the global variable `OS` to a lowercase identifier (e.g., "ubuntu", "debian", "rhel") or "unknown" if detection fails.
 detect_os() {
     OS="unknown"
     if [[ -f /etc/os-release ]]; then
         source /etc/os-release
-        OS="$ID"
+        OS="${ID,,}"
     elif [[ -f /etc/redhat-release ]]; then
-        OS="redhat"
+        OS="rhel"
     elif [[ -f /etc/debian_version ]]; then
         OS="debian"
     else
         OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+    fi
+
+    # Normalize redhat variants to rhel
+    if [[ "$OS" == "redhat" ]]; then
+        OS="rhel"
     fi
 }
 
