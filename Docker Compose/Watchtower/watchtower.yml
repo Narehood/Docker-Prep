@@ -1,10 +1,11 @@
 version: '3'
 services:
   watchtower:
-    image: containrrr/watchtower
+    image: nickfedor/watchtower:latest
     container_name: watchtower
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      - WATCHTOWER_SCHEDULE=0 1 * * *
+      - WATCHTOWER_SCHEDULE=0 0 3 * * * # Runs at 8:00 AM
+      - WATCHTOWER_CLEANUP=true
     restart: unless-stopped
