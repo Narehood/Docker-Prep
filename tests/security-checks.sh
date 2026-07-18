@@ -17,7 +17,9 @@ fi
     cd Scripts
     shopt -s nullglob
     for script in *.sh; do
-        if ! awk '{print $2}' .checksums.sha256 | grep -qxF "$script"; then
+        # Match a complete sha256sum line: <64-hex><two spaces><filename>
+        escaped_script=$(printf '%s' "$script" | sed 's/[][^$.*+?(){}|\\]/\\&/g')
+        if ! grep -Eq "^[a-f0-9]{64}  ${escaped_script}$" .checksums.sha256; then
             echo "Scripts/.checksums.sha256 is missing an entry for $script" >&2
             exit 1
         fi

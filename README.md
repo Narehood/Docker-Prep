@@ -71,7 +71,7 @@ The script guides you through a simplified menu to perform the following:
 | **Install Docker Engine** | Downloads the official installer to a temp file, then runs it (never `curl \| sh`) |
 | **User Configuration** | Creates a new user specifically for Docker or adds your current user |
 | **Security Groups** | Adds the selected user to the `docker` group for non-root command execution |
-| **Portainer Deployment** | Pulls and runs Portainer CE pinned to the `lts` image tag on port 9443 |
+| **Portainer Deployment** | Pulls and runs Portainer CE pinned to a verified image digest from the LTS release channel on port 9443 |
 
 ---
 

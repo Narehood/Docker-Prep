@@ -9,7 +9,10 @@ set -euo pipefail
 # DIRECTORY ANCHOR
 SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
 SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
-readonly PORTAINER_IMAGE="portainer/portainer-ce:lts"
+# Image digest pinned from the Portainer CE LTS release channel (not a floating tag).
+readonly PORTAINER_IMAGE="portainer/portainer-ce@sha256:f6bc23d1695530a609563fd65c180aaafec0fc02e019d5fc63d16b6fbe83addd"
+# SHA-256 of the official ce-lts compose file from downloads.portainer.io (pre-pin content).
+readonly PORTAINER_COMPOSE_SHA256="3929fa6576ad9f523297a69e8764bc112b5b8b3f67d986f1c2afed60248e1c22"
 SUDO=""
 
 # VISUAL STYLING
@@ -159,7 +162,25 @@ check_existing_portainer() {
     return 0
 }
 
-# pin_portainer_image rewrites floating Portainer image tags to the pinned LTS tag.
+# verify_compose_integrity checks the downloaded compose file against the repo-controlled SHA-256.
+verify_compose_integrity() {
+    local compose_file="$1"
+    local actual_sha
+
+    print_info "Verifying compose file integrity..."
+    actual_sha=$($SUDO sha256sum "$compose_file" | awk '{print $1}')
+    if [[ "$actual_sha" != "$PORTAINER_COMPOSE_SHA256" ]]; then
+        print_error "Compose file SHA-256 mismatch."
+        print_warn "Expected: $PORTAINER_COMPOSE_SHA256"
+        print_warn "Actual:   ${actual_sha:-<empty>}"
+        return 1
+    fi
+
+    print_success "Compose file integrity verified."
+    return 0
+}
+
+# pin_portainer_image rewrites floating Portainer image tags to the pinned digest.
 pin_portainer_image() {
     local compose_file="$1"
 
@@ -169,9 +190,10 @@ pin_portainer_image() {
         return 1
     fi
 
-    $SUDO sed -i -E 's|(image:[[:space:]]*"?)portainer/portainer-ce(:[A-Za-z0-9._-]+)?("?)|\1'"${PORTAINER_IMAGE}"'\3|' "$compose_file"
-    if ! $SUDO grep -qE 'image:[[:space:]]*"?portainer/portainer-ce:lts"?$' "$compose_file"; then
-        print_error "Failed to pin Portainer image tag."
+    $SUDO sed -i -E 's#(image:[[:space:]]*"?)portainer/portainer-ce(:[A-Za-z0-9._-]+|@sha256:[a-fA-F0-9]+)?("?)#\1'"${PORTAINER_IMAGE}"'\3#' "$compose_file"
+    if ! $SUDO grep -qF "image: ${PORTAINER_IMAGE}" "$compose_file" \
+        && ! $SUDO grep -qF "image: \"${PORTAINER_IMAGE}\"" "$compose_file"; then
+        print_error "Failed to pin Portainer image digest."
         return 1
     fi
 
@@ -201,9 +223,10 @@ validate_compose_file() {
         return 1
     fi
 
-    # Check for pinned portainer image reference
-    if ! $SUDO grep -qE "image:[[:space:]]*\"?portainer/portainer-ce:lts\"?" "$compose_file"; then
-        print_error "Compose file does not reference pinned Portainer CE LTS image."
+    # Check for pinned portainer image digest reference
+    if ! $SUDO grep -qF "image: ${PORTAINER_IMAGE}" "$compose_file" \
+        && ! $SUDO grep -qF "image: \"${PORTAINER_IMAGE}\"" "$compose_file"; then
+        print_error "Compose file does not reference the pinned Portainer CE image digest."
         return 1
     fi
 
@@ -265,6 +288,12 @@ deploy_portainer() {
     fi
     print_success "Compose file downloaded."
 
+    # Authenticate the artifact before any parsing or privileged deployment.
+    if ! verify_compose_integrity "$compose_tmp"; then
+        $SUDO rm -f "$compose_tmp"
+        return 1
+    fi
+
     if ! pin_portainer_image "$compose_tmp"; then
         $SUDO rm -f "$compose_tmp"
         return 1
@@ -281,6 +310,12 @@ deploy_portainer() {
     if ! $SUDO mv -f "$compose_tmp" "$compose_file"; then
         print_error "Failed to install validated compose file."
         $SUDO rm -f "$compose_tmp"
+        return 1
+    fi
+
+    # mktemp defaults to 0600; allow non-sudo management commands to read the file.
+    if ! $SUDO chmod a+r "$compose_file"; then
+        print_error "Failed to set readable mode on compose file."
         return 1
     fi
 

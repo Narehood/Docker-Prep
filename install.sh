@@ -483,10 +483,10 @@ install_docker() {
     print_line "-" "$BLUE"
 
     # Download the installer to a temp file, then execute that file.
-    local installer_path
+    local installer_path exit_code download_status
     installer_path=$(mktemp "${TMPDIR:-/tmp}/get-docker.XXXXXXXX.sh")
     if curl -fsSL https://get.docker.com -o "$installer_path"; then
-        local exit_code=0
+        exit_code=0
         $SUDO sh "$installer_path" || exit_code=$?
         rm -f "$installer_path"
 
@@ -501,10 +501,15 @@ install_docker() {
             fi
         else
             print_error "Docker installation failed."
+            pause
+            return "$exit_code"
         fi
     else
+        download_status=$?
         rm -f "$installer_path"
         print_error "Failed to download Docker installation script."
+        pause
+        return "$download_status"
     fi
 
     pause

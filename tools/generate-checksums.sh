@@ -20,9 +20,10 @@ if [[ ${#scripts[@]} -eq 0 ]]; then
     exit 1
 fi
 
-for script in "${scripts[@]}"; do
-    sha256sum "$script" | awk -v name="$(basename "$script")" '{ printf "%s  %s\n", $1, name }'
-done | sort -k2 > "$temporary"
+(
+    cd "$scripts_dir" || exit 1
+    sha256sum "${scripts[@]##*/}" | sort -k2
+) > "$temporary"
 
 if [[ ! -s "$temporary" ]]; then
     echo "Checksum generation produced an empty manifest." >&2
