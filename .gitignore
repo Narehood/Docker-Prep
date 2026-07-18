@@ -1,0 +1,4 @@
+.docker-prep-pin-update.md
+*.swp
+*~
+.DS_Store

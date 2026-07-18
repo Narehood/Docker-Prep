@@ -1,12 +1,16 @@
 #!/bin/bash
+set -euo pipefail
 
 # Portainer CE Installation Script
 # Deploys Portainer using the official LTS compose file
-# Version: 1.1.0
+# Version: 1.2.0
+# DESCRIPTION: Install Portainer CE using the official LTS compose file
 
 # DIRECTORY ANCHOR
 SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
 SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
+readonly PORTAINER_IMAGE="portainer/portainer-ce:lts"
+SUDO=""
 
 # VISUAL STYLING
 RED='\033[0;31m'
@@ -155,31 +159,51 @@ check_existing_portainer() {
     return 0
 }
 
+# pin_portainer_image rewrites floating Portainer image tags to the pinned LTS tag.
+pin_portainer_image() {
+    local compose_file="$1"
+
+    print_info "Pinning Portainer image to ${PORTAINER_IMAGE}..."
+    if ! $SUDO grep -qE 'image:[[:space:]]*"?portainer/portainer-ce' "$compose_file"; then
+        print_error "Compose file does not reference official Portainer CE image."
+        return 1
+    fi
+
+    $SUDO sed -i -E 's|(image:[[:space:]]*"?)portainer/portainer-ce(:[A-Za-z0-9._-]+)?("?)|\1'"${PORTAINER_IMAGE}"'\3|' "$compose_file"
+    if ! $SUDO grep -qE 'image:[[:space:]]*"?portainer/portainer-ce:lts"?$' "$compose_file"; then
+        print_error "Failed to pin Portainer image tag."
+        return 1
+    fi
+
+    print_success "Portainer image pinned."
+    return 0
+}
+
 # validate_compose_file validates a Docker Compose file for Portainer by checking that the file exists and is non-empty, contains a Portainer service and the official `portainer/portainer-ce` image reference, and has valid YAML syntax according to `docker compose config`; returns 0 on success and 1 on failure.
 validate_compose_file() {
     local compose_file="$1"
 
     print_info "Validating compose file..."
 
-    if [ ! -f "$compose_file" ]; then
+    if [[ ! -f "$compose_file" ]]; then
         print_error "Compose file not found."
         return 1
     fi
 
-    if [ ! -s "$compose_file" ]; then
+    if [[ ! -s "$compose_file" ]]; then
         print_error "Compose file is empty."
         return 1
     fi
 
     # Check for expected Portainer service definition
-    if ! grep -q "portainer" "$compose_file"; then
+    if ! $SUDO grep -q "portainer" "$compose_file"; then
         print_error "Compose file does not contain expected Portainer service."
         return 1
     fi
 
-    # Check for portainer image reference
-    if ! grep -qE "portainer/portainer-ce" "$compose_file"; then
-        print_error "Compose file does not reference official Portainer CE image."
+    # Check for pinned portainer image reference
+    if ! $SUDO grep -qE "image:[[:space:]]*\"?portainer/portainer-ce:lts\"?" "$compose_file"; then
+        print_error "Compose file does not reference pinned Portainer CE LTS image."
         return 1
     fi
 
@@ -202,8 +226,8 @@ deploy_portainer() {
     echo ""
     print_info "Deploying Portainer CE (LTS)..."
 
-    if [ ! -w "/opt" ]; then
-        if [ "$EUID" -ne 0 ]; then
+    if [[ ! -w "/opt" ]]; then
+        if [[ "$EUID" -ne 0 ]]; then
             print_warn "Root privileges required to create $compose_dir"
             read -rp "  Use sudo for directory creation? (Y/n): " use_sudo
             use_sudo="${use_sudo:-y}"
@@ -220,8 +244,7 @@ deploy_portainer() {
     fi
 
     print_info "Creating directory: $compose_dir"
-    $SUDO mkdir -p "$compose_dir"
-    if [ $? -ne 0 ]; then
+    if ! $SUDO mkdir -p "$compose_dir"; then
         print_error "Failed to create directory."
         return 1
     fi
@@ -236,6 +259,11 @@ deploy_portainer() {
         return 1
     fi
 
+    if ! pin_portainer_image "$compose_file"; then
+        $SUDO rm -f "$compose_file"
+        return 1
+    fi
+
     # Validate the downloaded file
     if ! validate_compose_file "$compose_file"; then
         print_error "Downloaded compose file failed validation."
@@ -247,16 +275,13 @@ deploy_portainer() {
     print_info "Starting Portainer containers..."
     echo ""
 
-    cd "$compose_dir" || return 1
-
-    if $SUDO docker compose -f "$compose_file" up -d; then
-        echo ""
-        print_success "Portainer deployed successfully!"
-    else
+    if ! $SUDO docker compose -f "$compose_file" up -d; then
         print_error "Failed to deploy Portainer."
         return 1
     fi
 
+    echo ""
+    print_success "Portainer deployed successfully!"
     return 0
 }
 

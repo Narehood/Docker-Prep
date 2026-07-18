@@ -16,7 +16,18 @@ WHITE='\033[1;37m'
 NC='\033[0m'
 
 UI_WIDTH=86
-VERSION="2.3.0"
+VERSION="2.4.0"
+
+# Ephemeral launch contract used by VM-Setup's pinned Docker-Prep launcher.
+# When set, this checkout is temporary: self-updates are disabled and the
+# revision display prefers DOCKER_PREP_REVISION over a branch name.
+DOCKER_PREP_EPHEMERAL="${DOCKER_PREP_EPHEMERAL:-0}"
+DOCKER_PREP_REVISION="${DOCKER_PREP_REVISION:-}"
+CHECKSUM_FILE="$SCRIPT_DIR/Scripts/.checksums.sha256"
+
+is_ephemeral() {
+    [[ "$DOCKER_PREP_EPHEMERAL" == "1" || "$DOCKER_PREP_EPHEMERAL" == "true" ]]
+}
 
 # Handle Ctrl+C gracefully
 trap 'echo -e "\n${GREEN}Goodbye!${NC}"; exit 0' INT
@@ -55,9 +66,33 @@ truncate_string() {
     fi
 }
 
-# get_current_branch prints the current Git branch name or "unknown" if unavailable.
-get_current_branch() {
-    git branch --show-current 2>/dev/null || echo "unknown"
+# get_revision_label prints the revision shown in the stats panel.
+get_revision_label() {
+    if is_ephemeral && [[ -n "$DOCKER_PREP_REVISION" ]]; then
+        echo "pin ${DOCKER_PREP_REVISION:0:12}"
+        return 0
+    fi
+
+    if ! command -v git >/dev/null 2>&1 || [[ ! -d "$SCRIPT_DIR/.git" ]]; then
+        echo "unknown"
+        return 0
+    fi
+
+    local branch
+    branch=$(git -C "$SCRIPT_DIR" branch --show-current 2>/dev/null || true)
+    if [[ -n "$branch" ]]; then
+        echo "$branch"
+        return 0
+    fi
+
+    local short_rev
+    short_rev=$(git -C "$SCRIPT_DIR" rev-parse --short HEAD 2>/dev/null || true)
+    if [[ -n "$short_rev" ]]; then
+        echo "detached $short_rev"
+        return 0
+    fi
+
+    echo "unknown"
 }
 
 show_header() {
@@ -68,16 +103,21 @@ show_header() {
     echo -e "${BLUE}╚════██║  ╚██╔╝  ╚════██║   ██║   ██╔══╝  ██║╚██╔╝██║    ╚════██║██╔══╝     ██║   ██║   ██║██╔═══╝ ${NC}"
     echo -e "${BLUE}███████║   ██║   ███████║   ██║   ███████╗██║ ╚═╝ ██║    ███████║███████╗   ██║   ╚██████╔╝██║     ${NC}"
     echo -e "${BLUE}╚══════╝   ╚═╝   ╚══════╝   ╚═╝   ╚══════╝╚═╝     ╚═╝    ╚══════╝╚══════╝   ╚═╝    ╚═════╝ ╚═╝     ${NC}"
-    print_centered "VERSION $VERSION  |  DOCKER HOST PREPARATION" "$CYAN"
+    if is_ephemeral; then
+        print_centered "VERSION $VERSION  |  EPHEMERAL PINNED LAUNCH" "$CYAN"
+    else
+        print_centered "VERSION $VERSION  |  DOCKER HOST PREPARATION" "$CYAN"
+    fi
     print_line "=" "$BLUE"
 }
 
 show_stats() {
     # OS Detection
     local distro="Unknown"
-    if [ -f /etc/os-release ]; then
+    if [[ -f /etc/os-release ]]; then
+        # shellcheck disable=SC1091
         . /etc/os-release
-        if [ "$ID" = "alpine" ]; then
+        if [[ "$ID" == "alpine" ]]; then
             distro="Alpine ${VERSION_ID:-}"
         else
             distro="${PRETTY_NAME:-$ID}"
@@ -162,9 +202,9 @@ show_stats() {
         gateway=$(truncate_string "${gateway:-N/A}" 20)
     fi
 
-    # Current branch
-    local current_branch
-    current_branch=$(truncate_string "$(get_current_branch)" 30)
+    # Revision / branch label
+    local revision_label
+    revision_label=$(truncate_string "$(get_revision_label)" 30)
 
     # Docker status
     local docker_status="Not Installed"
@@ -205,13 +245,67 @@ show_stats() {
     print_line "-" "$BLUE"
     printf "  ${YELLOW}%-11s${NC} : %-30b ${YELLOW}%-11s${NC} : %b\n" "Docker" "$docker_status" "Compose" "$compose_status"
     print_line "-" "$BLUE"
-    printf "  ${YELLOW}%-11s${NC} : %-30s\n" "Branch" "$current_branch"
+    printf "  ${YELLOW}%-11s${NC} : %-30s\n" "Revision" "$revision_label"
     print_line "=" "$BLUE"
+}
+
+# verify_script_checksum verifies a Scripts/ entry against Scripts/.checksums.sha256.
+verify_script_checksum() {
+    local script_path="$1"
+    local script_name
+    script_name=$(basename "$script_path")
+
+    if [[ ! -f "$CHECKSUM_FILE" ]]; then
+        print_error "Trusted checksum manifest is missing: $CHECKSUM_FILE"
+        return 1
+    fi
+
+    if ! command -v sha256sum >/dev/null 2>&1; then
+        print_error "sha256sum is required for integrity verification."
+        return 1
+    fi
+
+    local expected_hash match_count
+    match_count=$(awk -v name="$script_name" '$2 == name { count++ } END { print count+0 }' "$CHECKSUM_FILE")
+    if [[ "$match_count" -ne 1 ]]; then
+        print_error "Checksum manifest must contain exactly one entry for $script_name"
+        return 1
+    fi
+    expected_hash=$(awk -v name="$script_name" '$2 == name { print $1 }' "$CHECKSUM_FILE")
+
+    if [[ ! "$expected_hash" =~ ^[[:xdigit:]]{64}$ ]]; then
+        print_error "Invalid checksum entry for $script_name"
+        return 1
+    fi
+
+    local actual_hash
+    actual_hash=$(sha256sum "$script_path" 2>/dev/null | awk '{print $1}' || true)
+
+    if [[ "$expected_hash" != "$actual_hash" ]]; then
+        print_error "Checksum verification FAILED for $script_name"
+        print_error "Expected: $expected_hash"
+        print_error "Got:      ${actual_hash:-<empty>}"
+        print_error "Refusing to execute modified or corrupted script."
+        return 1
+    fi
+
+    print_success "Checksum verified for $script_name"
+    return 0
 }
 
 check_for_updates() {
     echo ""
     print_status "Checking for updates..."
+
+    if is_ephemeral; then
+        print_warn "This is an ephemeral pinned launch from VM-Setup."
+        print_status "Self-updates are disabled here. Update the Docker-Prep pin in VM-Setup instead."
+        if [[ -n "$DOCKER_PREP_REVISION" ]]; then
+            print_status "Pinned revision: $DOCKER_PREP_REVISION"
+        fi
+        sleep 2
+        return 0
+    fi
 
     if ! command -v git >/dev/null 2>&1; then
         print_error "Git is not installed."
@@ -219,70 +313,94 @@ check_for_updates() {
         return 1
     fi
 
-    if [ ! -d "$SCRIPT_DIR/.git" ]; then
+    if [[ ! -d "$SCRIPT_DIR/.git" ]]; then
         print_warn "Not a git repository. Skipping update check."
         sleep 2
         return 1
     fi
 
-    if ! git fetch --quiet 2>/dev/null; then
+    local branch
+    branch=$(git -C "$SCRIPT_DIR" branch --show-current 2>/dev/null || true)
+    if [[ -z "$branch" ]]; then
+        print_warn "Detached HEAD checkout. Skipping self-update."
+        print_status "Check out a branch (for example main) to enable updates."
+        sleep 2
+        return 1
+    fi
+
+    if ! git -C "$SCRIPT_DIR" fetch --quiet 2>/dev/null; then
         print_error "Failed to fetch from remote."
         sleep 2
         return 1
     fi
 
     local local_rev remote_rev
-    local_rev=$(git rev-parse @ 2>/dev/null)
+    local_rev=$(git -C "$SCRIPT_DIR" rev-parse HEAD 2>/dev/null || true)
 
-    if ! remote_rev=$(git rev-parse '@{u}' 2>/dev/null); then
-        print_error "No upstream branch configured."
+    if ! remote_rev=$(git -C "$SCRIPT_DIR" rev-parse '@{u}' 2>/dev/null); then
+        print_warn "No upstream branch configured for '$branch'."
+        print_status "Set upstream with: git branch --set-upstream-to=origin/$branch"
         sleep 2
         return 1
     fi
 
-    if [ "$local_rev" = "$remote_rev" ]; then
+    if [[ "$local_rev" == "$remote_rev" ]]; then
         print_success "Menu is up to date."
         sleep 1
-    else
-        print_warn "New version available."
-        read -rp "Download and apply updates? (y/N): " pull_choice
-        pull_choice="${pull_choice:-n}"
-        if [[ "$pull_choice" =~ ^[Yy]$ ]]; then
-            if git pull --quiet; then
-                print_success "Updated successfully. Restarting..."
-                sleep 1
-                exec bash "$SCRIPT_PATH"
-            else
-                print_error "Update failed. Try 'git pull' manually."
-                sleep 2
-            fi
-        else
-            print_status "Update skipped."
+        return 0
+    fi
+
+    print_warn "New version available."
+    read -rp "Download and apply updates? (y/N): " pull_choice
+    pull_choice="${pull_choice:-n}"
+    if [[ "$pull_choice" =~ ^[Yy]$ ]]; then
+        if git -C "$SCRIPT_DIR" pull --ff-only --quiet; then
+            print_success "Updated successfully. Restarting..."
             sleep 1
+            exec bash "$SCRIPT_PATH"
+        else
+            print_error "Update failed. Try 'git pull --ff-only' manually."
+            sleep 2
+            return 1
         fi
+    else
+        print_status "Update skipped."
+        sleep 1
     fi
 }
 
 execute_script() {
     local script_name="$1"
-    local script_path="Scripts/$script_name"
+    local script_path="$SCRIPT_DIR/Scripts/$script_name"
 
     echo ""
 
-    if [ ! -f "$script_path" ]; then
+    if [[ ! -f "$script_path" ]]; then
         print_error "Script '$script_name' not found in 'Scripts/' directory."
         pause
         return 1
     fi
 
-    if [ ! -r "$script_path" ]; then
+    if [[ -L "$script_path" ]]; then
+        print_error "Refusing to execute symlinked script: $script_path"
+        pause
+        return 1
+    fi
+
+    if [[ ! -r "$script_path" ]]; then
         print_error "Script '$script_name' not readable."
         pause
         return 1
     fi
 
+    if ! verify_script_checksum "$script_path"; then
+        print_error "Script verification failed. Aborting."
+        pause
+        return 1
+    fi
+
     # Check if executable
-    if [ ! -x "$script_path" ]; then
+    if [[ ! -x "$script_path" ]]; then
         print_warn "Script is not executable."
         read -rp "  Make it executable? (Y/n): " response
         response="${response:-y}"
@@ -301,7 +419,7 @@ execute_script() {
 
     # Execute in subshell to maintain directory context
     (
-        cd Scripts || exit 1
+        cd "$SCRIPT_DIR/Scripts" || exit 1
         bash "$script_name"
     )
     local exit_code=$?
@@ -309,12 +427,12 @@ execute_script() {
     echo ""
     print_line "-" "$BLUE"
 
-    if [ $exit_code -ne 0 ]; then
+    if [[ $exit_code -ne 0 ]]; then
         print_warn "Script exited with code: $exit_code"
     fi
 
     read -rp "Press [Enter] to return to menu or type 'exit': " next_action
-    if [ "$next_action" = "exit" ]; then
+    if [[ "$next_action" == "exit" ]]; then
         echo -e "\n${GREEN}Goodbye!${NC}"
         exit 0
     fi
@@ -324,24 +442,10 @@ install_docker() {
     echo ""
     print_status "Installing Docker Engine..."
 
-    # Detect package manager and OS
-    local pkg_manager=""
-    local os_id=""
-
-    if [ -f /etc/os-release ]; then
-        . /etc/os-release
-        os_id="$ID"
-    fi
-
-    if command -v apt-get >/dev/null 2>&1; then
-        pkg_manager="apt"
-    elif command -v dnf >/dev/null 2>&1; then
-        pkg_manager="dnf"
-    elif command -v yum >/dev/null 2>&1; then
-        pkg_manager="yum"
-    elif command -v apk >/dev/null 2>&1; then
-        pkg_manager="apk"
-    else
+    if ! command -v apt-get >/dev/null 2>&1 \
+        && ! command -v dnf >/dev/null 2>&1 \
+        && ! command -v yum >/dev/null 2>&1 \
+        && ! command -v apk >/dev/null 2>&1; then
         print_error "Unsupported package manager."
         pause
         return 1
@@ -361,8 +465,9 @@ install_docker() {
         fi
     fi
 
+    local SUDO=""
     # Check for root
-    if [ "$EUID" -ne 0 ]; then
+    if [[ "$EUID" -ne 0 ]]; then
         print_warn "This operation requires root privileges."
         read -rp "  Run with sudo? (Y/n): " use_sudo
         use_sudo="${use_sudo:-y}"
@@ -371,21 +476,21 @@ install_docker() {
             pause
             return 0
         fi
-        local SUDO="sudo"
-    else
-        local SUDO=""
+        SUDO="sudo"
     fi
 
     print_status "Using official Docker installation script..."
     print_line "-" "$BLUE"
 
-    # Use Docker's convenience script
-    if curl -fsSL https://get.docker.com -o /tmp/get-docker.sh; then
-        $SUDO sh /tmp/get-docker.sh
-        local exit_code=$?
-        rm -f /tmp/get-docker.sh
+    # Download the installer to a temp file, then execute that file.
+    local installer_path
+    installer_path=$(mktemp "${TMPDIR:-/tmp}/get-docker.XXXXXXXX.sh")
+    if curl -fsSL https://get.docker.com -o "$installer_path"; then
+        local exit_code=0
+        $SUDO sh "$installer_path" || exit_code=$?
+        rm -f "$installer_path"
 
-        if [ $exit_code -eq 0 ]; then
+        if [[ $exit_code -eq 0 ]]; then
             print_success "Docker installed successfully!"
 
             # Enable and start Docker
@@ -398,6 +503,7 @@ install_docker() {
             print_error "Docker installation failed."
         fi
     else
+        rm -f "$installer_path"
         print_error "Failed to download Docker installation script."
     fi
 
@@ -532,9 +638,14 @@ declare -A MENU_OPTIONS=(
 
 # show_menu displays the interactive Docker configuration menu with numbered options for installing Docker, adding a user to the docker group, installing Portainer, viewing Docker system info, checking for updates, and returning to the main menu.
 show_menu() {
+    local update_label="Check for Updates"
+    if is_ephemeral; then
+        update_label="Pinned Launch Info"
+    fi
+
     echo -e "${WHITE}DOCKER CONFIGURATION${NC}"
     printf "  ${CYAN}1.${NC} %-43s ${CYAN}4.${NC} %s\n" "Install Docker Engine" "Docker System Info"
-    printf "  ${CYAN}2.${NC} %-43s ${CYAN}5.${NC} %s\n" "Add User to Docker Group" "Check for Updates"
+    printf "  ${CYAN}2.${NC} %-43s ${CYAN}5.${NC} %s\n" "Add User to Docker Group" "$update_label"
     printf "  ${CYAN}3.${NC} %s\n" "Install Portainer"
     echo ""
     printf "  ${CYAN}0.${NC} ${RED}%s${NC}\n" "Return to Main Menu"

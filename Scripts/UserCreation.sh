@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 # User Creation Script
 # Creates a new user with optional docker group membership
@@ -7,6 +8,8 @@
 
 # DIRECTORY ANCHOR
 SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+# shellcheck disable=SC2034
+SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
 
 # VISUAL STYLING
 RED='\033[0;31m'
@@ -48,6 +51,7 @@ fi
 detect_os() {
     OS="unknown"
     if [[ -f /etc/os-release ]]; then
+        # shellcheck disable=SC1091
         source /etc/os-release
         OS="${ID,,}"
     elif [[ -f /etc/redhat-release ]]; then

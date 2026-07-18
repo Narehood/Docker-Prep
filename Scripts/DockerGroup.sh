@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 # Docker Group Management Script
 # Adds a user to the docker group for rootless container management
@@ -7,6 +8,7 @@
 
 # DIRECTORY ANCHOR
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC2034
 SCRIPT_PATH="$SCRIPT_DIR/$(basename -- "${BASH_SOURCE[0]}")"
 
 # VISUAL STYLING
@@ -49,6 +51,7 @@ fi
 detect_os() {
     OS="unknown"
     if [[ -f /etc/os-release ]]; then
+        # shellcheck disable=SC1091
         source /etc/os-release
         OS="$ID"
     elif [[ -f /etc/redhat-release ]]; then
