@@ -1,12 +1,19 @@
 #!/bin/bash
+set -euo pipefail
 
 # Portainer CE Installation Script
 # Deploys Portainer using the official LTS compose file
-# Version: 1.1.0
+# Version: 1.2.0
+# DESCRIPTION: Install Portainer CE using the official LTS compose file
 
 # DIRECTORY ANCHOR
 SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
 SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
+# Image digest pinned from the Portainer CE LTS release channel (not a floating tag).
+readonly PORTAINER_IMAGE="portainer/portainer-ce@sha256:f6bc23d1695530a609563fd65c180aaafec0fc02e019d5fc63d16b6fbe83addd"
+# SHA-256 of the official ce-lts compose file from downloads.portainer.io (pre-pin content).
+readonly PORTAINER_COMPOSE_SHA256="3929fa6576ad9f523297a69e8764bc112b5b8b3f67d986f1c2afed60248e1c22"
+SUDO=""
 
 # VISUAL STYLING
 RED='\033[0;31m'
@@ -155,31 +162,71 @@ check_existing_portainer() {
     return 0
 }
 
+# verify_compose_integrity checks the downloaded compose file against the repo-controlled SHA-256.
+verify_compose_integrity() {
+    local compose_file="$1"
+    local actual_sha
+
+    print_info "Verifying compose file integrity..."
+    actual_sha=$($SUDO sha256sum "$compose_file" | awk '{print $1}')
+    if [[ "$actual_sha" != "$PORTAINER_COMPOSE_SHA256" ]]; then
+        print_error "Compose file SHA-256 mismatch."
+        print_warn "Expected: $PORTAINER_COMPOSE_SHA256"
+        print_warn "Actual:   ${actual_sha:-<empty>}"
+        return 1
+    fi
+
+    print_success "Compose file integrity verified."
+    return 0
+}
+
+# pin_portainer_image rewrites floating Portainer image tags to the pinned digest.
+pin_portainer_image() {
+    local compose_file="$1"
+
+    print_info "Pinning Portainer image to ${PORTAINER_IMAGE}..."
+    if ! $SUDO grep -qE 'image:[[:space:]]*"?portainer/portainer-ce' "$compose_file"; then
+        print_error "Compose file does not reference official Portainer CE image."
+        return 1
+    fi
+
+    $SUDO sed -i -E 's#(image:[[:space:]]*"?)portainer/portainer-ce(:[A-Za-z0-9._-]+|@sha256:[a-fA-F0-9]+)?("?)#\1'"${PORTAINER_IMAGE}"'\3#' "$compose_file"
+    if ! $SUDO grep -qF "image: ${PORTAINER_IMAGE}" "$compose_file" \
+        && ! $SUDO grep -qF "image: \"${PORTAINER_IMAGE}\"" "$compose_file"; then
+        print_error "Failed to pin Portainer image digest."
+        return 1
+    fi
+
+    print_success "Portainer image pinned."
+    return 0
+}
+
 # validate_compose_file validates a Docker Compose file for Portainer by checking that the file exists and is non-empty, contains a Portainer service and the official `portainer/portainer-ce` image reference, and has valid YAML syntax according to `docker compose config`; returns 0 on success and 1 on failure.
 validate_compose_file() {
     local compose_file="$1"
 
     print_info "Validating compose file..."
 
-    if [ ! -f "$compose_file" ]; then
+    if [[ ! -f "$compose_file" ]]; then
         print_error "Compose file not found."
         return 1
     fi
 
-    if [ ! -s "$compose_file" ]; then
+    if [[ ! -s "$compose_file" ]]; then
         print_error "Compose file is empty."
         return 1
     fi
 
     # Check for expected Portainer service definition
-    if ! grep -q "portainer" "$compose_file"; then
+    if ! $SUDO grep -q "portainer" "$compose_file"; then
         print_error "Compose file does not contain expected Portainer service."
         return 1
     fi
 
-    # Check for portainer image reference
-    if ! grep -qE "portainer/portainer-ce" "$compose_file"; then
-        print_error "Compose file does not reference official Portainer CE image."
+    # Check for pinned portainer image digest reference
+    if ! $SUDO grep -qF "image: ${PORTAINER_IMAGE}" "$compose_file" \
+        && ! $SUDO grep -qF "image: \"${PORTAINER_IMAGE}\"" "$compose_file"; then
+        print_error "Compose file does not reference the pinned Portainer CE image digest."
         return 1
     fi
 
@@ -202,8 +249,8 @@ deploy_portainer() {
     echo ""
     print_info "Deploying Portainer CE (LTS)..."
 
-    if [ ! -w "/opt" ]; then
-        if [ "$EUID" -ne 0 ]; then
+    if [[ ! -w "/opt" ]]; then
+        if [[ "$EUID" -ne 0 ]]; then
             print_warn "Root privileges required to create $compose_dir"
             read -rp "  Use sudo for directory creation? (Y/n): " use_sudo
             use_sudo="${use_sudo:-y}"
@@ -220,8 +267,7 @@ deploy_portainer() {
     fi
 
     print_info "Creating directory: $compose_dir"
-    $SUDO mkdir -p "$compose_dir"
-    if [ $? -ne 0 ]; then
+    if ! $SUDO mkdir -p "$compose_dir"; then
         print_error "Failed to create directory."
         return 1
     fi
@@ -229,34 +275,60 @@ deploy_portainer() {
     print_info "Downloading Portainer compose file..."
     print_info "Source: $compose_url"
 
-    if $SUDO curl -fsSL "$compose_url" -o "$compose_file"; then
-        print_success "Compose file downloaded."
-    else
+    local compose_tmp
+    compose_tmp=$($SUDO mktemp "$compose_dir/portainer-compose.yaml.XXXXXX") || {
+        print_error "Failed to create temporary compose file."
+        return 1
+    }
+
+    if ! $SUDO curl -fsSL "$compose_url" -o "$compose_tmp"; then
         print_error "Failed to download compose file."
+        $SUDO rm -f "$compose_tmp"
+        return 1
+    fi
+    print_success "Compose file downloaded."
+
+    # Authenticate the artifact before any parsing or privileged deployment.
+    if ! verify_compose_integrity "$compose_tmp"; then
+        $SUDO rm -f "$compose_tmp"
         return 1
     fi
 
-    # Validate the downloaded file
-    if ! validate_compose_file "$compose_file"; then
+    if ! pin_portainer_image "$compose_tmp"; then
+        $SUDO rm -f "$compose_tmp"
+        return 1
+    fi
+
+    # Validate the downloaded file before replacing any live compose file
+    if ! validate_compose_file "$compose_tmp"; then
         print_error "Downloaded compose file failed validation."
         print_warn "The file may have been corrupted or the source may be compromised."
-        $SUDO rm -f "$compose_file"
+        $SUDO rm -f "$compose_tmp"
+        return 1
+    fi
+
+    if ! $SUDO mv -f "$compose_tmp" "$compose_file"; then
+        print_error "Failed to install validated compose file."
+        $SUDO rm -f "$compose_tmp"
+        return 1
+    fi
+
+    # mktemp defaults to 0600; allow non-sudo management commands to read the file.
+    if ! $SUDO chmod a+r "$compose_file"; then
+        print_error "Failed to set readable mode on compose file."
         return 1
     fi
 
     print_info "Starting Portainer containers..."
     echo ""
 
-    cd "$compose_dir" || return 1
-
-    if $SUDO docker compose -f "$compose_file" up -d; then
-        echo ""
-        print_success "Portainer deployed successfully!"
-    else
+    if ! $SUDO docker compose -f "$compose_file" up -d; then
         print_error "Failed to deploy Portainer."
         return 1
     fi
 
+    echo ""
+    print_success "Portainer deployed successfully!"
     return 0
 }
 

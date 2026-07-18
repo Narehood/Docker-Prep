@@ -1,7 +1,10 @@
 #!/bin/sh
+# DESCRIPTION: Distro-aware Docker Engine installer with optional Portainer CE
+set -eu
 
-# --- DIRECTORY ANCHOR ---
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# --- CONSTANTS ---
+# Image digest pinned from the Portainer CE LTS release channel (not a floating tag).
+PORTAINER_IMAGE="portainer/portainer-ce@sha256:f6bc23d1695530a609563fd65c180aaafec0fc02e019d5fc63d16b6fbe83addd"
 
 # --- VISUAL STYLING ---
 RED='\033[0;31m'
@@ -34,9 +37,10 @@ fi
 # --- OS DETECTION ---
 detect_os() {
     if [ -f /etc/os-release ]; then
+        # shellcheck disable=SC1091
         . /etc/os-release
         OS=$ID
-        VERSION=$VERSION_ID
+        VERSION=${VERSION_ID:-}
     elif [ -f /etc/redhat-release ]; then
         OS="redhat"
     elif [ -f /etc/debian_version ]; then
@@ -82,6 +86,7 @@ install_docker_apt() {
     chmod a+r /etc/apt/keyrings/docker.gpg
 
     if [ -f /etc/os-release ]; then
+        # shellcheck disable=SC1091
         . /etc/os-release
         DISTRO_ID=$ID
 
@@ -208,7 +213,7 @@ case "$install_portainer" in
             --name=portainer --restart=always \
             -v /var/run/docker.sock:/var/run/docker.sock \
             -v portainer_data:/data \
-            portainer/portainer-ce:latest
+            "$PORTAINER_IMAGE"
 
         IP_ADDRESS=$(hostname -I | awk '{print $1}')
 
