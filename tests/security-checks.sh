@@ -15,6 +15,13 @@ fi
 
 (
     cd Scripts
+    shopt -s nullglob
+    for script in *.sh; do
+        if ! awk '{print $2}' .checksums.sha256 | grep -qxF "$script"; then
+            echo "Scripts/.checksums.sha256 is missing an entry for $script" >&2
+            exit 1
+        fi
+    done
     sha256sum --check --strict .checksums.sha256
 )
 

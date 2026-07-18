@@ -252,23 +252,35 @@ deploy_portainer() {
     print_info "Downloading Portainer compose file..."
     print_info "Source: $compose_url"
 
-    if $SUDO curl -fsSL "$compose_url" -o "$compose_file"; then
-        print_success "Compose file downloaded."
-    else
+    local compose_tmp
+    compose_tmp=$($SUDO mktemp "$compose_dir/portainer-compose.yaml.XXXXXX") || {
+        print_error "Failed to create temporary compose file."
+        return 1
+    }
+
+    if ! $SUDO curl -fsSL "$compose_url" -o "$compose_tmp"; then
         print_error "Failed to download compose file."
+        $SUDO rm -f "$compose_tmp"
+        return 1
+    fi
+    print_success "Compose file downloaded."
+
+    if ! pin_portainer_image "$compose_tmp"; then
+        $SUDO rm -f "$compose_tmp"
         return 1
     fi
 
-    if ! pin_portainer_image "$compose_file"; then
-        $SUDO rm -f "$compose_file"
-        return 1
-    fi
-
-    # Validate the downloaded file
-    if ! validate_compose_file "$compose_file"; then
+    # Validate the downloaded file before replacing any live compose file
+    if ! validate_compose_file "$compose_tmp"; then
         print_error "Downloaded compose file failed validation."
         print_warn "The file may have been corrupted or the source may be compromised."
-        $SUDO rm -f "$compose_file"
+        $SUDO rm -f "$compose_tmp"
+        return 1
+    fi
+
+    if ! $SUDO mv -f "$compose_tmp" "$compose_file"; then
+        print_error "Failed to install validated compose file."
+        $SUDO rm -f "$compose_tmp"
         return 1
     fi
 
