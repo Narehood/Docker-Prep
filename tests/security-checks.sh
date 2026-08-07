@@ -57,6 +57,16 @@ if ! grep -Eq '^VERSION="2\.[0-9]+\.[0-9]+"' install.sh; then
     exit 1
 fi
 
+if ! grep -q 'install_docker_alpine' install.sh; then
+    echo "install.sh must provide an Alpine apk Docker install path." >&2
+    exit 1
+fi
+
+if ! grep -q 'apk add docker docker-cli-compose' install.sh; then
+    echo "install.sh Alpine path must install docker and docker-cli-compose via apk." >&2
+    exit 1
+fi
+
 if rg -n 'git clean[[:space:]]+-[^[:space:]]*f' install.sh; then
     echo "Broad destructive git clean is forbidden." >&2
     exit 1

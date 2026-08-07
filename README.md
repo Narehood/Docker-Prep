@@ -68,7 +68,7 @@ The script guides you through a simplified menu to perform the following:
 
 | Action | Description |
 | :--- | :--- |
-| **Install Docker Engine** | Downloads the official installer to a temp file, then runs it (never `curl \| sh`) |
+| **Install Docker Engine** | On Alpine, installs via `apk` from the community repo; elsewhere downloads the official installer to a temp file and runs it (never `curl \| sh`) |
 | **User Configuration** | Creates a new user specifically for Docker or adds your current user |
 | **Security Groups** | Adds the selected user to the `docker` group for non-root command execution |
 | **Portainer Deployment** | Pulls and runs Portainer CE pinned to a verified image digest from the LTS release channel on port 9443 |

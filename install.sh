@@ -438,6 +438,108 @@ execute_script() {
     fi
 }
 
+# detect_distro_id returns the OS ID from /etc/os-release (e.g. alpine, ubuntu).
+detect_distro_id() {
+    if [[ -f /etc/os-release ]]; then
+        awk -F= '/^ID=/{gsub(/"/, "", $2); print $2; exit}' /etc/os-release
+    else
+        printf '%s\n' "unknown"
+    fi
+}
+
+# enable_docker_service enables and starts the Docker daemon via systemd or OpenRC.
+enable_docker_service() {
+    local SUDO="${1:-}"
+
+    if command -v systemctl >/dev/null 2>&1; then
+        $SUDO systemctl enable docker 2>/dev/null || true
+        $SUDO systemctl start docker 2>/dev/null || true
+        print_success "Docker service enabled and started."
+        return 0
+    fi
+
+    if command -v rc-update >/dev/null 2>&1; then
+        $SUDO rc-update add docker default 2>/dev/null || true
+        if command -v rc-service >/dev/null 2>&1; then
+            $SUDO rc-service docker start 2>/dev/null || true
+        elif command -v service >/dev/null 2>&1; then
+            $SUDO service docker start 2>/dev/null || true
+        fi
+        print_success "Docker service enabled and started."
+        return 0
+    fi
+
+    print_warn "Could not detect systemd or OpenRC; start Docker manually."
+}
+
+# install_docker_alpine installs Docker Engine and Compose from Alpine community packages.
+install_docker_alpine() {
+    local SUDO="${1:-}"
+    local alpine_version repo_url exit_code
+
+    print_status "Alpine detected — using apk (get.docker.com does not support Alpine)."
+    print_line "-" "$BLUE"
+
+    if [[ ! -f /etc/alpine-release ]]; then
+        print_error "Alpine release file not found."
+        return 1
+    fi
+
+    alpine_version=$(cut -d'.' -f1,2 /etc/alpine-release)
+    repo_url="https://dl-cdn.alpinelinux.org/alpine/v${alpine_version}/community"
+
+    if ! grep -qE '/alpine/(v[^/]+|edge)/community' /etc/apk/repositories 2>/dev/null; then
+        print_status "Enabling Alpine community repository..."
+        echo "$repo_url" | $SUDO tee -a /etc/apk/repositories >/dev/null
+    fi
+
+    print_status "Installing Docker & Compose via apk..."
+    exit_code=0
+    $SUDO apk update || exit_code=$?
+    if [[ $exit_code -eq 0 ]]; then
+        $SUDO apk add docker docker-cli-compose || exit_code=$?
+    fi
+
+    if [[ $exit_code -ne 0 ]]; then
+        print_error "Docker installation failed."
+        return "$exit_code"
+    fi
+
+    print_success "Docker installed successfully!"
+    enable_docker_service "$SUDO"
+    return 0
+}
+
+# install_docker_official downloads get.docker.com to a temp file, then executes that file.
+install_docker_official() {
+    local SUDO="${1:-}"
+    local installer_path exit_code download_status
+
+    print_status "Using official Docker installation script..."
+    print_line "-" "$BLUE"
+
+    installer_path=$(mktemp "${TMPDIR:-/tmp}/get-docker.XXXXXXXX.sh")
+    if curl -fsSL https://get.docker.com -o "$installer_path"; then
+        exit_code=0
+        $SUDO sh "$installer_path" || exit_code=$?
+        rm -f "$installer_path"
+
+        if [[ $exit_code -eq 0 ]]; then
+            print_success "Docker installed successfully!"
+            enable_docker_service "$SUDO"
+            return 0
+        fi
+
+        print_error "Docker installation failed."
+        return "$exit_code"
+    fi
+
+    download_status=$?
+    rm -f "$installer_path"
+    print_error "Failed to download Docker installation script."
+    return "$download_status"
+}
+
 install_docker() {
     echo ""
     print_status "Installing Docker Engine..."
@@ -479,37 +581,19 @@ install_docker() {
         SUDO="sudo"
     fi
 
-    print_status "Using official Docker installation script..."
-    print_line "-" "$BLUE"
+    local distro_id exit_code
+    distro_id=$(detect_distro_id)
+    exit_code=0
 
-    # Download the installer to a temp file, then execute that file.
-    local installer_path exit_code download_status
-    installer_path=$(mktemp "${TMPDIR:-/tmp}/get-docker.XXXXXXXX.sh")
-    if curl -fsSL https://get.docker.com -o "$installer_path"; then
-        exit_code=0
-        $SUDO sh "$installer_path" || exit_code=$?
-        rm -f "$installer_path"
-
-        if [[ $exit_code -eq 0 ]]; then
-            print_success "Docker installed successfully!"
-
-            # Enable and start Docker
-            if command -v systemctl >/dev/null 2>&1; then
-                $SUDO systemctl enable docker 2>/dev/null || true
-                $SUDO systemctl start docker 2>/dev/null || true
-                print_success "Docker service enabled and started."
-            fi
-        else
-            print_error "Docker installation failed."
-            pause
-            return "$exit_code"
-        fi
+    if [[ "$distro_id" == "alpine" ]]; then
+        install_docker_alpine "$SUDO" || exit_code=$?
     else
-        download_status=$?
-        rm -f "$installer_path"
-        print_error "Failed to download Docker installation script."
+        install_docker_official "$SUDO" || exit_code=$?
+    fi
+
+    if [[ $exit_code -ne 0 ]]; then
         pause
-        return "$download_status"
+        return "$exit_code"
     fi
 
     pause
@@ -555,14 +639,28 @@ add_user_to_docker_group() {
         local SUDO=""
     fi
 
+    local distro_id
+    distro_id=$(detect_distro_id)
+
     # Ensure docker group exists
     if ! getent group docker >/dev/null 2>&1; then
         print_status "Creating docker group..."
-        $SUDO groupadd docker
+        if [[ "$distro_id" == "alpine" ]]; then
+            $SUDO addgroup docker
+        else
+            $SUDO groupadd docker
+        fi
     fi
 
-    # Add user to group
-    if $SUDO usermod -aG docker "$current_user"; then
+    # Add user to group (Alpine uses addgroup; others use usermod)
+    local group_ok=0
+    if [[ "$distro_id" == "alpine" ]]; then
+        $SUDO addgroup "$current_user" docker && group_ok=1
+    else
+        $SUDO usermod -aG docker "$current_user" && group_ok=1
+    fi
+
+    if [[ $group_ok -eq 1 ]]; then
         print_success "User '$current_user' added to docker group."
         echo ""
         print_warn "You must log out and back in for this to take effect."
