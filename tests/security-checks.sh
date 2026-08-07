@@ -57,13 +57,19 @@ if ! grep -Eq '^VERSION="2\.[0-9]+\.[0-9]+"' install.sh; then
     exit 1
 fi
 
-if ! grep -q 'install_docker_alpine' install.sh; then
-    echo "install.sh must provide an Alpine apk Docker install path." >&2
+if ! grep -q 'apk add docker docker-cli-compose' install.sh; then
+    echo "install.sh Alpine path must install docker and docker-cli-compose via apk." >&2
     exit 1
 fi
 
-if ! grep -q 'apk add docker docker-cli-compose' install.sh; then
-    echo "install.sh Alpine path must install docker and docker-cli-compose via apk." >&2
+# Alpine / non-Alpine branches must call the matching installer (not merely define it).
+if ! rg -U -q '\[\[ "\$distro_id" == "alpine" \]\]; then[[:space:]]+install_docker_alpine "\$SUDO"' install.sh; then
+    echo 'Alpine distro_id branch must call install_docker_alpine "$SUDO".' >&2
+    exit 1
+fi
+
+if ! rg -U --multiline-dotall -q '\[\[ "\$distro_id" == "alpine" \]\]; then[[:space:]]+install_docker_alpine "\$SUDO".*else[[:space:]]+install_docker_official "\$SUDO"' install.sh; then
+    echo 'Non-Alpine distro_id branch must call install_docker_official "$SUDO".' >&2
     exit 1
 fi
 

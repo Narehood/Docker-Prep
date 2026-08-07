@@ -448,28 +448,48 @@ detect_distro_id() {
 }
 
 # enable_docker_service enables and starts the Docker daemon via systemd or OpenRC.
+# Returns nonzero if enable/start fails or neither init system is available.
 enable_docker_service() {
     local SUDO="${1:-}"
 
     if command -v systemctl >/dev/null 2>&1; then
-        $SUDO systemctl enable docker 2>/dev/null || true
-        $SUDO systemctl start docker 2>/dev/null || true
-        print_success "Docker service enabled and started."
-        return 0
-    fi
-
-    if command -v rc-update >/dev/null 2>&1; then
-        $SUDO rc-update add docker default 2>/dev/null || true
-        if command -v rc-service >/dev/null 2>&1; then
-            $SUDO rc-service docker start 2>/dev/null || true
-        elif command -v service >/dev/null 2>&1; then
-            $SUDO service docker start 2>/dev/null || true
+        if ! $SUDO systemctl enable docker; then
+            print_error "Failed to enable Docker service."
+            return 1
+        fi
+        if ! $SUDO systemctl start docker; then
+            print_error "Failed to start Docker service."
+            return 1
         fi
         print_success "Docker service enabled and started."
         return 0
     fi
 
-    print_warn "Could not detect systemd or OpenRC; start Docker manually."
+    if command -v rc-update >/dev/null 2>&1; then
+        if ! $SUDO rc-update add docker default; then
+            print_error "Failed to enable Docker service."
+            return 1
+        fi
+        if command -v rc-service >/dev/null 2>&1; then
+            if ! $SUDO rc-service docker start; then
+                print_error "Failed to start Docker service."
+                return 1
+            fi
+        elif command -v service >/dev/null 2>&1; then
+            if ! $SUDO service docker start; then
+                print_error "Failed to start Docker service."
+                return 1
+            fi
+        else
+            print_error "No OpenRC service command found to start Docker."
+            return 1
+        fi
+        print_success "Docker service enabled and started."
+        return 0
+    fi
+
+    print_error "Could not detect systemd or OpenRC; start Docker manually."
+    return 1
 }
 
 # install_docker_alpine installs Docker Engine and Compose from Alpine community packages.
@@ -506,7 +526,9 @@ install_docker_alpine() {
     fi
 
     print_success "Docker installed successfully!"
-    enable_docker_service "$SUDO"
+    if ! enable_docker_service "$SUDO"; then
+        return 1
+    fi
     return 0
 }
 
@@ -526,7 +548,9 @@ install_docker_official() {
 
         if [[ $exit_code -eq 0 ]]; then
             print_success "Docker installed successfully!"
-            enable_docker_service "$SUDO"
+            if ! enable_docker_service "$SUDO"; then
+                return 1
+            fi
             return 0
         fi
 
